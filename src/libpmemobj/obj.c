@@ -1415,7 +1415,7 @@ err:
  * pmemobj_create -- create a transactional memory pool (set)
  */
 PMEMobjpool *
-pmemobj_create(const char *path, const char *layout,
+pmemobj_create_no_asan(const char *path, const char *layout,
 		size_t poolsize, mode_t mode)
 {
 	PMEMOBJ_API_START();
@@ -1804,7 +1804,7 @@ pmemobj_openU(const char *path, const char *layout)
  * pmemobj_open -- open a transactional memory pool
  */
 PMEMobjpool *
-pmemobj_open(const char *path, const char *layout)
+pmemobj_open_no_asan(const char *path, const char *layout)
 {
 	PMEMOBJ_API_START();
 
@@ -1936,7 +1936,7 @@ obj_pool_cleanup(PMEMobjpool *pop)
  * pmemobj_close -- close a transactional memory pool
  */
 void
-pmemobj_close(PMEMobjpool *pop)
+pmemobj_close_no_asan(PMEMobjpool *pop)
 {
 	LOG(3, "pop %p", pop);
 	PMEMOBJ_API_START();
@@ -2614,7 +2614,7 @@ pmemobj_free(PMEMoid *oidp)
  * pmemobj_alloc_usable_size -- returns usable size of object
  */
 size_t
-pmemobj_alloc_usable_size(PMEMoid oid)
+pmemobj_alloc_usable_size_no_asan(PMEMoid oid)
 {
 	LOG(3, "oid.off 0x%016" PRIx64, oid.off);
 
@@ -2845,7 +2845,7 @@ obj_alloc_root(PMEMobjpool *pop, size_t size,
  * pmemobj_root_size -- returns size of the root object
  */
 size_t
-pmemobj_root_size(PMEMobjpool *pop)
+pmemobj_root_size_no_asan(PMEMobjpool *pop)
 {
 	LOG(3, "pop %p", pop);
 
@@ -2904,7 +2904,7 @@ pmemobj_root_construct(PMEMobjpool *pop, size_t size,
  * pmemobj_root -- returns root object
  */
 PMEMoid
-pmemobj_root(PMEMobjpool *pop, size_t size)
+pmemobj_root_no_asan(PMEMobjpool *pop, size_t size)
 {
 	LOG(3, "pop %p size %zu", pop, size);
 

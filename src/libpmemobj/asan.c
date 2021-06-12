@@ -1,5 +1,4 @@
 #include "asan.h"
-#include "tx.h"
 
 #include <assert.h>
 
@@ -31,6 +30,18 @@ void pmemobj_asan_memset(uint8_t* start, uint8_t byt, size_t len) {
 	}
 }
 
+__attribute__((no_sanitize("address")))
+void pmemobj_asan_memcpy(void* dest_, const void* src_, size_t len) {
+        uint8_t* dest = (uint8_t*)dest_;
+        const uint8_t* src = (const uint8_t*)src_;
+        while (len) {
+                *(uint8_t*)dest = *(uint8_t*)src;
+                dest++;
+                src++;
+                len--;
+        }
+}
+
 // len in bytes
 __attribute__((no_sanitize("address")))
 void pmemobj_asan_mark_mem(void* start, size_t len, uint8_t tag) {
@@ -53,27 +64,22 @@ void pmemobj_asan_mark_mem(void* start, size_t len, uint8_t tag) {
 	}
 }
 
+/*
 int
-pmemobj_asan_tag_mem_tx(uint64_t off, size_t size, uint8_t tag) {
-	struct tx* tx = get_tx();
-
+pmemobj_asan_tag_mem_tx(void* ptr, size_t size, uint8_t tag) {
 	size_t shadow_modification_size = (size+7)/8 + off%8;
-
-	struct tx_range_def args = {
-		.offset = tx->pop->shadow_mem_offset + off/8,
-		.size = shadow_modification_size,
-		.flags = 0,
-	};
+	PMEMoid psm = pmemobj_asan_ptr2psm(ptr);
+	uint64_t off = ((uint8_t* )ptr - (uint8_t*)pmemobj_pool_by_ptr(ptr))/8;
 
 	// kartal TODO: instead of adding part of the shadow mem to the transaction as a snapshot,
 	//              use a custom ulog operation to save persistent memory
-	int ret = pmemobj_tx_add_common_no_check(tx, &args);
+	int ret = pmemobj_tx_add_range(psm, off, shadow_modification_size);
 	if (ret) {
 		return ret;
 	}
 
-	void *ptr = (void *)((uintptr_t)tx->pop + off);
 	pmemobj_asan_mark_mem(ptr, size, tag);
 
 	return 0;
 }
+*/

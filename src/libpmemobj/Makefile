@@ -34,7 +34,8 @@ SOURCE +=\
 	stats.c\
 	ulog.c\
 	asan.c\
-	asan_overmap.c
+	asan_overmap.c\
+	asan_wrappers.c
 
 include ../Makefile.inc
 

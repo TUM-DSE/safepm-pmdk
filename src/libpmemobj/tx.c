@@ -1542,7 +1542,7 @@ pmemobj_tx_xadd_range(PMEMoid oid, uint64_t hoff, size_t size, uint64_t flags)
  * pmemobj_tx_alloc -- allocates a new object
  */
 PMEMoid
-pmemobj_tx_alloc(size_t size, uint64_t type_num)
+pmemobj_tx_alloc_no_asan(size_t size, uint64_t type_num)
 {
 	LOG(3, NULL);
 
@@ -1572,7 +1572,7 @@ pmemobj_tx_alloc(size_t size, uint64_t type_num)
 /*
  * pmemobj_tx_zalloc -- allocates a new zeroed object
  */
-PMEMoid
+/*PMEMoid
 pmemobj_tx_zalloc(size_t size, uint64_t type_num)
 {
 	LOG(3, NULL);
@@ -1598,7 +1598,7 @@ pmemobj_tx_zalloc(size_t size, uint64_t type_num)
 
 	PMEMOBJ_API_END();
 	return oid;
-}
+}*/
 
 /*
  * pmemobj_tx_xalloc -- allocates a new object
@@ -1874,7 +1874,7 @@ pmemobj_tx_xfree(PMEMoid oid, uint64_t flags)
  * pmemobj_tx_free -- frees an existing object
  */
 int
-pmemobj_tx_free(PMEMoid oid)
+pmemobj_tx_free_no_asan(PMEMoid oid)
 {
 	return pmemobj_tx_xfree(oid, 0);
 }

@@ -47,6 +47,11 @@ void tx_ctl_register(PMEMobjpool *pop);
 struct tx_parameters *tx_params_new(void);
 void tx_params_delete(struct tx_parameters *tx_params);
 
+PMEMoid
+pmemobj_tx_alloc_no_asan(size_t size, uint64_t type_num);
+int
+pmemobj_tx_free_no_asan(PMEMoid oid);
+
 #ifdef __cplusplus
 }
 #endif

@@ -282,6 +282,20 @@ pmemobj_fault_injection_enabled(void)
 }
 #endif
 
+PMEMobjpool *
+pmemobj_create_no_asan(const char *path, const char *layout,
+		size_t poolsize, mode_t mode);
+PMEMobjpool *
+pmemobj_open_no_asan(const char *path, const char *layout);
+void
+pmemobj_close_no_asan(PMEMobjpool *pop);
+size_t
+pmemobj_alloc_usable_size_no_asan(PMEMoid oid);
+size_t
+pmemobj_root_size_no_asan(PMEMobjpool *pop);
+PMEMoid
+pmemobj_root_no_asan(PMEMobjpool *pop, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

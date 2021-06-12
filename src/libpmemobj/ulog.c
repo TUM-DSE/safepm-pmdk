@@ -15,6 +15,7 @@
 #include "out.h"
 #include "util.h"
 #include "valgrind_internal.h"
+#include "asan.h"
 
 /*
  * Operation flag at the three most significant bits
@@ -448,8 +449,8 @@ ulog_entry_buf_create(struct ulog *ulog, size_t offset, uint64_t gen_num,
 
 	size_t bdatasize = CACHELINE_SIZE - sizeof(struct ulog_entry_buf);
 	size_t ncopy = MIN(size, bdatasize);
-	memcpy(b->data, src, ncopy);
-	memset(b->data + ncopy, 0, bdatasize - ncopy);
+	pmemobj_asan_memcpy(b->data, src, ncopy);
+	pmemobj_asan_memset(b->data + ncopy, 0, bdatasize - ncopy);
 
 	size_t remaining_size = ncopy > size ? 0 : size - ncopy;
 
@@ -459,8 +460,8 @@ ulog_entry_buf_create(struct ulog *ulog, size_t offset, uint64_t gen_num,
 
 	uint8_t last_cacheline[CACHELINE_SIZE];
 	if (lcopy != 0) {
-		memcpy(last_cacheline, srcof + rcopy, lcopy);
-		memset(last_cacheline + lcopy, 0, CACHELINE_SIZE - lcopy);
+		pmemobj_asan_memcpy(last_cacheline, srcof + rcopy, lcopy);
+		pmemobj_asan_memset(last_cacheline + lcopy, 0, CACHELINE_SIZE - lcopy);
 	}
 
 	if (rcopy != 0) {
