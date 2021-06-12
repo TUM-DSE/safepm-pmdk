@@ -115,12 +115,16 @@ PMEMobjpool *pmemobj_create(const char *path, const char *real_layout, size_t po
 	overmap_pool(path, pool);
 	
 	uint8_t* vmem_shadow_mem_start = pmemobj_direct(rootp->shadow_mem);
+
+	// Mark eerything until the heap "metadata"
+	pmemobj_memset_persist(pool, vmem_shadow_mem_start, pmemobj_asan_METADATA, pool->heap_offset/8);
+
+	// Mark the entire heap "freed"
+	pmemobj_memset_persist(pool, vmem_shadow_mem_start + pool->heap_offset/8, pmemobj_asan_FREED, pool->heap_size/8);
 	
 	// Mark the red zone within the persistent shadow mem
 	// The red zone corresponding to the volatile persistent memory range is marked non-accessible on a page permission level, because filling the red zone with -1 would allocate physical memory.
-	// But we simply set it to -1
-	// TODO: For portions of the persistent shadow memory that correspond to itself, avoid marking them -1 and instead mark them no read/write using page permissions.
-	//       Just like the regular ASan
+	// We need not resort to such a trick, as we allocate all persistent shadow memory during pool creation.
 	pmemobj_memset_persist(pool, vmem_shadow_mem_start + rootp->shadow_mem.off/8, pmemobj_asan_INTERNAL, shadow_size/8); // Note that because of the overmapping, the change will be mirrored to the overmapped shadow memory.
 	
 	return pool;

@@ -24,6 +24,7 @@
 #include "out.h"
 #include "valgrind_internal.h"
 #include "alloc_class.h"
+#include "asan.h"
 
 /* calculates the size of the entire run, including any additional chunks */
 #define SIZEOF_RUN(runp, size_idx)\
@@ -1355,10 +1356,10 @@ memblock_run_init(struct palloc_heap *heap,
 	size_t bitmap_size = b.size;
 
 	/* set all the bits */
-	memset(b.values, 0xFF, bitmap_size);
+	pmemobj_asan_memset(b.values, 0xFF, bitmap_size);
 
 	/* clear only the bits available for allocations from this bucket */
-	memset(b.values, 0, sizeof(*b.values) * (b.nvalues - 1));
+	pmemobj_asan_memset(b.values, 0, sizeof(*b.values) * (b.nvalues - 1));
 
 	unsigned trailing_bits = b.nbits % RUN_BITS_PER_VALUE;
 	uint64_t last_value = UINT64_MAX << trailing_bits;

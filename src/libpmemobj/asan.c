@@ -22,7 +22,8 @@ uint8_t* pmemobj_asan_get_shadow_mem_location(void* _p) {
 // Even with no_sanitize, calls to memset get intercepted by ASan,
 //  which is uncomfortable with us directly modifying the shadow memory
 __attribute__((no_sanitize("address")))
-void pmemobj_asan_memset(uint8_t* start, uint8_t byt, size_t len) {
+void pmemobj_asan_memset(void* start_, uint8_t byt, size_t len) {
+	uint8_t* start = start_;
 	while (len) {
 		*start = byt;
 		start++;
