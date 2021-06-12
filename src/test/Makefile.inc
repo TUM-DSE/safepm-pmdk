@@ -463,7 +463,7 @@ extract_funcs = $(shell \
 
 INCS += -I../unittest -I$(TOP)/src/include -I$(TOP)/src/common -I$(TOP)/src/core
 
-COMMON_FLAGS  = -ggdb
+COMMON_FLAGS += -ggdb
 COMMON_FLAGS += -Wall
 COMMON_FLAGS += -Werror
 COMMON_FLAGS += -Wpointer-arith
@@ -473,13 +473,13 @@ COMMON_FLAGS += -Wunused-macros
 endif
 COMMON_FLAGS += -fno-common
 
-CXXFLAGS  = -std=c++11
+CXXFLAGS += -std=c++11
 CXXFLAGS += $(GLIBC_CXXFLAGS)
 CXXFLAGS += -ggdb
 CXXFLAGS += $(COMMON_FLAGS)
 CXXFLAGS += $(EXTRA_CXXFLAGS)
 
-CFLAGS  = -std=gnu99
+CFLAGS += -std=gnu99
 CFLAGS += -Wmissing-prototypes
 CFLAGS += $(COMMON_FLAGS)
 
@@ -508,7 +508,7 @@ endif
 
 CFLAGS += $(EXTRA_CFLAGS)
 
-LDFLAGS = -Wl,--warn-common -Wl,--fatal-warnings $(EXTRA_LDFLAGS)
+LDFLAGS += -Wl,--warn-common -Wl,--fatal-warnings $(EXTRA_LDFLAGS)
 
 ifeq ($(OS_DIMM),ndctl)
 CFLAGS += $(OS_DIMM_CFLAG)

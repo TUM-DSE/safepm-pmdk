@@ -16,8 +16,8 @@ include $(TOP)/src/common.inc
 CXXFLAGS = -std=c++11 -ggdb -Wall -Werror -fsanitize=address
 CXXFLAGS += $(GLIBC_CXXFLAGS)
 CXXFLAGS +=  $(EXTRA_CXXFLAGS)
-CFLAGS = -std=gnu99 -ggdb -Wall -Werror -Wmissing-prototypes $(EXTRA_CFLAGS) -fsanitize=address
-LDFLAGS = -Wl,-rpath=$(LIBDIR) -L$(LIBDIR) $(EXTRA_LDFLAGS) -fsanitize=address
+CFLAGS = -std=gnu99 -ggdb -Wall -Werror -Wmissing-prototypes -fsanitize=address $(EXTRA_CFLAGS)
+LDFLAGS = -fsanitize=address -Wl,-rpath=$(LIBDIR) -L$(LIBDIR) $(EXTRA_LDFLAGS)
 ifneq ($(SANITIZE),)
 CFLAGS += -fsanitize=$(SANITIZE)
 CXXFLAGS += -fsanitize=$(SANITIZE)

@@ -109,8 +109,8 @@ CXXFLAGS += -DFAULT_INJECTION=1
 endif
 
 ifneq ($(SANITIZE),)
-CFLAGS += -fsanitize=$(tsanitize)
-LDFLAGS += -fsanitize=$(tsanitize)
+CFLAGS += -fsanitize=$(SANITIZE)
+LDFLAGS += -fsanitize=$(SANITIZE)
 endif
 
 CFLAGS += $(EXTRA_CFLAGS)
