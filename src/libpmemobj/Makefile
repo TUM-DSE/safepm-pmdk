@@ -32,7 +32,9 @@ SOURCE +=\
 	sync.c\
 	tx.c\
 	stats.c\
-	ulog.c
+	ulog.c\
+	asan.c\
+	asan_overmap.c
 
 include ../Makefile.inc
 

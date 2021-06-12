@@ -299,7 +299,7 @@ util_init(void)
 		Pagesize = (unsigned long) sysconf(_SC_PAGESIZE);
 
 #ifndef _WIN32
-	Mmap_align = Pagesize;
+	Mmap_align = Pagesize*8; // For the asan overmap to succeed, we want the persistent shadow memory to be 8*Pagesize aligned, so the pool should also be 8*Pagesize aligned.
 #else
 	if (Mmap_align == 0) {
 		SYSTEM_INFO si;
