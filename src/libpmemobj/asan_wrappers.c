@@ -220,7 +220,7 @@ uint64_t
 pmemobj_type_num(PMEMoid oid) {
 	ASSERT(!OID_IS_NULL(oid));
 	oid.off -= pmemobj_asan_RED_ZONE_SIZE;
-	return pmemobj_type_num_no_asan(oid);
+	return pmemobj_type_num_no_asan(oid) - TOID_TYPE_NUM(struct pmemobj_asan_end);
 }
 int pmemobj_alloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
     uint64_t type_num, pmemobj_constr constructor, void *arg) {
@@ -272,6 +272,32 @@ void pmemobj_free(PMEMoid *oidp) {
 		}
 		*oidp = OID_NULL;
 	} TX_END
+}
+
+PMEMoid
+pmemobj_first(PMEMobjpool *pop) {
+	PMEMoid res = pmemobj_first_no_asan(pop);
+	if (OID_IS_NULL(res))
+		return res;
+	if (pmemobj_type_num_no_asan(res) < TOID_TYPE_NUM(struct pmemobj_asan_end)) {
+		res.off += pmemobj_asan_RED_ZONE_SIZE; // kartal TODO: Once we backport the redzone-as-object-header approach, we won't need all this pointer juggling
+		return pmemobj_next(res);
+	}
+	res.off += pmemobj_asan_RED_ZONE_SIZE;
+	return res;
+}
+PMEMoid
+pmemobj_next(PMEMoid oid) {
+	oid.off -= pmemobj_asan_RED_ZONE_SIZE;
+	PMEMoid res = pmemobj_next_no_asan(oid);
+	if (OID_IS_NULL(res))
+		return res;
+	if (pmemobj_type_num_no_asan(res) < TOID_TYPE_NUM(struct pmemobj_asan_end)) {
+		res.off += pmemobj_asan_RED_ZONE_SIZE;
+		return pmemobj_next(res);
+	}
+	res.off += pmemobj_asan_RED_ZONE_SIZE;
+	return res;
 }
 
 //PMEMoid spmemobj_tx_realloc(PMEMoid oid, size_t size, uint64_t type_num);

@@ -209,7 +209,7 @@ realloc_int(PMEMoid *info, size_t prev_size, size_t size)
 	TOID(int) array;
 	TOID_ASSIGN(array, *info);
 
-	POBJ_REALLOC(pop, &array, int, size * sizeof(int));
+	assert( 0 == POBJ_REALLOC(pop, &array, int, size * sizeof(int)));
 	if (size > prev_size) {
 		for (size_t i = prev_size; i < size; i++)
 				D_RW(array)[i] = (int)i;
@@ -228,8 +228,8 @@ realloc_pmemoid(PMEMoid *info, size_t prev_size, size_t size)
 {
 	TOID(PMEMoid) array;
 	TOID_ASSIGN(array, *info);
-	pmemobj_zrealloc(pop, &array.oid, sizeof(PMEMoid) * size,
-							TOID_TYPE_NUM(PMEMoid));
+	assert(0 == pmemobj_zrealloc(pop, &array.oid, sizeof(PMEMoid) * size,
+							TOID_TYPE_NUM(PMEMoid)));
 
 	for (size_t i = prev_size; i < size; i++) {
 		if (pmemobj_alloc(pop, &D_RW(array)[i],
@@ -250,12 +250,12 @@ realloc_toid(PMEMoid *info, size_t prev_size, size_t size)
 {
 	TOID_ARRAY(TOID(struct array_elm)) array;
 	TOID_ASSIGN(array, *info);
-	pmemobj_zrealloc(pop, &array.oid,
+	assert(0 == pmemobj_zrealloc(pop, &array.oid,
 			sizeof(TOID(struct array_elm)) * size,
-			TOID_TYPE_NUM_OF(array));
+			TOID_TYPE_NUM_OF(array)));
 	for (size_t i = prev_size; i < size; i++) {
-		POBJ_NEW(pop, &D_RW(array)[i], struct array_elm,
-						elm_constructor, &i);
+		assert(0 == POBJ_NEW(pop, &D_RW(array)[i], struct array_elm,
+						elm_constructor, &i));
 		if (TOID_IS_NULL(D_RW(array)[i])) {
 			fprintf(stderr, "POBJ_ALLOC\n");
 			assert(0);
@@ -280,8 +280,8 @@ alloc_int(size_t size)
 	 * pointer with size equal to number of elements multiplied by size of
 	 * user-defined structure.
 	 */
-	POBJ_ALLOC(pop, &array, int, sizeof(int) * size,
-						NULL, NULL);
+	assert(0 == POBJ_ALLOC(pop, &array, int, sizeof(int) * size,
+						NULL, NULL));
 	if (TOID_IS_NULL(array)) {
 		fprintf(stderr, "POBJ_ALLOC\n");
 		return OID_NULL;
@@ -305,8 +305,8 @@ alloc_pmemoid(size_t size)
 	 * pointer with size equal to number of elements multiplied by size of
 	 * PMEMoid and to allocate each of elements separately.
 	 */
-	POBJ_ALLOC(pop, &array, PMEMoid, sizeof(PMEMoid) * size,
-					NULL, NULL);
+	assert(0 == POBJ_ALLOC(pop, &array, PMEMoid, sizeof(PMEMoid) * size,
+					NULL, NULL));
 	if (TOID_IS_NULL(array)) {
 		fprintf(stderr, "POBJ_ALLOC\n");
 		return OID_NULL;
@@ -336,8 +336,8 @@ alloc_toid(size_t size)
 	 * elements multiplied by size of TOID of proper type and to allocate
 	 * each of elements separately.
 	 */
-	POBJ_ALLOC(pop, &array, TOID(struct array_elm),
-			sizeof(TOID(struct array_elm)) * size, NULL, NULL);
+	assert(0 == POBJ_ALLOC(pop, &array, TOID(struct array_elm),
+			sizeof(TOID(struct array_elm)) * size, NULL, NULL));
 
 	if (TOID_IS_NULL(array)) {
 		fprintf(stderr, "POBJ_ALLOC\n");
@@ -345,8 +345,8 @@ alloc_toid(size_t size)
 	}
 
 	for (size_t i = 0; i < size; i++) {
-		POBJ_NEW(pop, &D_RW(array)[i], struct array_elm,
-						elm_constructor, &i);
+		assert(0 == POBJ_NEW(pop, &D_RW(array)[i], struct array_elm,
+						elm_constructor, &i));
 		if (TOID_IS_NULL(D_RW(array)[i])) {
 			fprintf(stderr, "POBJ_ALLOC\n");
 			assert(0);
@@ -445,7 +445,7 @@ do_alloc(int argc, char *argv[])
 	TOID(struct array_info) array_info = find_array(argv[0]);
 	if (!TOID_IS_NULL(array_info))
 		POBJ_FREE(&array_info);
-	POBJ_ZNEW(pop, &array_info, struct array_info);
+	assert(0 == POBJ_ZNEW(pop, &array_info, struct array_info));
 	struct array_info *info = D_RW(array_info);
 	strncpy(info->name, argv[0], MAX_BUFFLEN - 1);
 	info->name[MAX_BUFFLEN - 1] = '\0';

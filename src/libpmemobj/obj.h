@@ -302,6 +302,10 @@ int pmemobj_alloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 int pmemobj_zalloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
     uint64_t type_num);
 void pmemobj_free_no_asan(PMEMoid *oidp);
+PMEMoid
+pmemobj_first_no_asan(PMEMobjpool *pop);
+PMEMoid
+pmemobj_next_no_asan(PMEMoid oid);
 
 #ifdef __cplusplus
 }

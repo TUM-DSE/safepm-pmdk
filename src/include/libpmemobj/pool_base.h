@@ -17,7 +17,8 @@
 extern "C" {
 #endif
 
-#define PMEMOBJ_MIN_POOL ((size_t)(1024 * 1024 * 8)) /* 8 MiB */
+#define PMEMOBJ_MIN_POOL_NO_ASAN ((size_t)(1024 * 1024 * 8)) /* 8 MiB */
+#define PMEMOBJ_MIN_POOL (PMEMOBJ_MIN_POOL_NO_ASAN*9/8)
 
 /*
  * This limit is set arbitrary to incorporate a pool header and required

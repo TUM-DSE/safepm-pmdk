@@ -2918,7 +2918,7 @@ pmemobj_root_no_asan(PMEMobjpool *pop, size_t size)
  * pmemobj_first - returns first object of specified type
  */
 PMEMoid
-pmemobj_first(PMEMobjpool *pop)
+pmemobj_first_no_asan(PMEMobjpool *pop)
 {
 	LOG(3, "pop %p", pop);
 
@@ -2930,7 +2930,7 @@ pmemobj_first(PMEMobjpool *pop)
 		ret.pool_uuid_lo = pop->uuid_lo;
 
 		if (palloc_flags(&pop->heap, off) & OBJ_INTERNAL_OBJECT_MASK) {
-			return pmemobj_next(ret);
+			return pmemobj_next_no_asan(ret);
 		}
 	}
 
@@ -2941,7 +2941,7 @@ pmemobj_first(PMEMobjpool *pop)
  * pmemobj_next - returns next object of specified type
  */
 PMEMoid
-pmemobj_next(PMEMoid oid)
+pmemobj_next_no_asan(PMEMoid oid)
 {
 	LOG(3, "oid.off 0x%016" PRIx64, oid.off);
 
