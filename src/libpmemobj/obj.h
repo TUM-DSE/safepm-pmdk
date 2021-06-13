@@ -295,6 +295,13 @@ size_t
 pmemobj_root_size_no_asan(PMEMobjpool *pop);
 PMEMoid
 pmemobj_root_no_asan(PMEMobjpool *pop, size_t size);
+uint64_t
+pmemobj_type_num_no_asan(PMEMoid oid);
+int pmemobj_alloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+    uint64_t type_num, pmemobj_constr constructor, void *arg);
+int pmemobj_zalloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+    uint64_t type_num);
+void pmemobj_free_no_asan(PMEMoid *oidp);
 
 #ifdef __cplusplus
 }

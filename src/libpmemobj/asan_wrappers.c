@@ -1,6 +1,8 @@
 #include "asan_wrappers.h"
 #include "asan_overmap.h"
 #include "asan.h"
+#include "libpmemobj/base.h"
+#include "libpmemobj/tx_base.h"
 #include "obj.h"
 #include <fcntl.h>           /* For O_* constants */
 #include <unistd.h>
@@ -104,8 +106,7 @@ PMEMobjpool *pmemobj_create(const char *path, const char *real_layout, size_t po
 	size_t shadow_size = poolsize/8; // The shadow memory encompasses information about the whole pool: including the pmdk header and the shadow memory itself
 	// Allocate and zero-initialize the persistent shadow memory
 	
-	// kartal TODO: Once we start intercepting non-tx operations, the line below will need to use the non-asan version
-	assert(0 == pmemobj_alloc(pool, &rootp->shadow_mem, shadow_size+4096, TOID_TYPE_NUM(struct pmemobj_asan_shadowmem), NULL, NULL)); // The offset of the shadow memory needs to be 4k aligned (because we want to be able to map it independently of the rest of the pool), so alloate some additional space
+	assert(0 == pmemobj_alloc_no_asan(pool, &rootp->shadow_mem, shadow_size+4096, TOID_TYPE_NUM(struct pmemobj_asan_shadowmem), NULL, NULL)); // The offset of the shadow memory needs to be 4k aligned (because we want to be able to map it independently of the rest of the pool), so allocate some additional space
 	if (rootp->shadow_mem.off % (4096)) // Make sure the shadow mem offset is 4kb aligned. We don't need to store the original address returned by POBJ_ZALLOC because we won't free the shadow memory
 		rootp->shadow_mem.off += 4096 - rootp->shadow_mem.off%(4096);
 
@@ -206,11 +207,76 @@ PMEMoid pmemobj_tx_zalloc(size_t size, uint64_t type_num) {
 }
 size_t
 pmemobj_alloc_usable_size(PMEMoid oid) {
+	if (OID_IS_NULL(oid))
+		return 0;
+
+	oid.off -= pmemobj_asan_RED_ZONE_SIZE;
 	size_t res = pmemobj_alloc_usable_size_no_asan(oid);
 	if (res == 0)
 		return 0;
 	return res - 2*pmemobj_asan_RED_ZONE_SIZE;
 }
+uint64_t
+pmemobj_type_num(PMEMoid oid) {
+	ASSERT(!OID_IS_NULL(oid));
+	oid.off -= pmemobj_asan_RED_ZONE_SIZE;
+	return pmemobj_type_num_no_asan(oid);
+}
+int pmemobj_alloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+    uint64_t type_num, pmemobj_constr constructor, void *arg) {
+	if (size == 0) {
+		ERR("allocation with size 0");
+		errno = EINVAL;
+		return -1;
+	}
+
+	volatile int cancelled = 0;
+	TX_BEGIN(pop) {
+		PMEMoid oid = pmemobj_tx_alloc(size, type_num); // Note that this is an asan-aware allocation
+		if (oidp != NULL) {
+			if ((uint8_t*)oidp >= (uint8_t*)pop + pop->heap_offset &&
+				(uint8_t*)oidp < (uint8_t*)pop + pop->heap_offset + pop->heap_size) {
+				pmemobj_tx_add_range_direct(oidp, sizeof(PMEMoid));
+			}
+			*oidp = oid;
+		}
+		if (constructor != NULL)
+			if (constructor(pop, pmemobj_direct(oid), arg) != 0)
+				pmemobj_tx_abort(ECANCELED);
+	} TX_ONABORT {
+		cancelled = 1;
+	} TX_END
+	if (cancelled)
+		return -1;
+	return 0;
+}
+static int zalloc_zeroer(PMEMobjpool *pop, void *ptr, void *arg) {
+	TX_MEMSET(ptr, 0, (size_t)arg);
+	return 0;
+}
+int pmemobj_zalloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+    uint64_t type_num) {
+	return pmemobj_alloc(pop, oidp, size, type_num, zalloc_zeroer, (void*)size);
+}
+void pmemobj_free(PMEMoid *oidp) {
+	ASSERTne(oidp, NULL);
+	if (OID_IS_NULL(*oidp))
+		return ;
+
+	PMEMobjpool* pop = pmemobj_pool_by_oid(*oidp);
+	TX_BEGIN(pop) {
+		pmemobj_tx_free(*oidp); // Note that this is an asan-aware de-allocation
+		if ((uint8_t*)oidp >= (uint8_t*)pop + pop->heap_offset &&
+			(uint8_t*)oidp < (uint8_t*)pop + pop->heap_offset + pop->heap_size) {
+			pmemobj_tx_add_range_direct(oidp, sizeof(PMEMoid));
+		}
+		*oidp = OID_NULL;
+	} TX_END
+}
+
 //PMEMoid spmemobj_tx_realloc(PMEMoid oid, size_t size, uint64_t type_num);
 //PMEMoid spmemobj_tx_zrealloc(PMEMoid oid, size_t size, uint64_t type_num);
 //PMEMoid spmemobj_tx_strdup(const char *s, uint64_t type_num);
+//int pmemobj_realloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type_num);
+//int pmemobj_zrealloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type_num);
+//int pmemobj_strdup(PMEMobjpool *pop, PMEMoid *oidp, const char *s, uint64_t type_num);

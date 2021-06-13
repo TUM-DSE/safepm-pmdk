@@ -2204,7 +2204,7 @@ obj_alloc_construct(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
  * pmemobj_alloc -- allocates a new object
  */
 int
-pmemobj_alloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+pmemobj_alloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	uint64_t type_num, pmemobj_constr constructor, void *arg)
 {
 	LOG(3, "pop %p oidp %p size %zu type_num %llx constructor %p arg %p",
@@ -2280,29 +2280,29 @@ struct carg_realloc {
 /*
  * pmemobj_zalloc -- allocates a new zeroed object
  */
-int
-pmemobj_zalloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
-		uint64_t type_num)
-{
-	LOG(3, "pop %p oidp %p size %zu type_num %llx",
-			pop, oidp, size, (unsigned long long)type_num);
-
-	/* log notice message if used inside a transaction */
-	_POBJ_DEBUG_NOTICE_IN_TX();
-
-	if (size == 0) {
-		ERR("allocation with size 0");
-		errno = EINVAL;
-		return -1;
-	}
-
-	PMEMOBJ_API_START();
-	int ret = obj_alloc_construct(pop, oidp, size, type_num, POBJ_FLAG_ZERO,
-		NULL, NULL);
-
-	PMEMOBJ_API_END();
-	return ret;
-}
+// int
+// pmemobj_zalloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+// 		uint64_t type_num)
+// {
+// 	LOG(3, "pop %p oidp %p size %zu type_num %llx",
+// 			pop, oidp, size, (unsigned long long)type_num);
+//
+// 	/* log notice message if used inside a transaction */
+// 	_POBJ_DEBUG_NOTICE_IN_TX();
+//
+// 	if (size == 0) {
+// 		ERR("allocation with size 0");
+// 		errno = EINVAL;
+// 		return -1;
+// 	}
+//
+// 	PMEMOBJ_API_START();
+// 	int ret = obj_alloc_construct(pop, oidp, size, type_num, POBJ_FLAG_ZERO,
+// 		NULL, NULL);
+//
+// 	PMEMOBJ_API_END();
+// 	return ret;
+// }
 
 /*
  * obj_free -- (internal) free an object
@@ -2587,28 +2587,28 @@ pmemobj_wcsdup(PMEMobjpool *pop, PMEMoid *oidp, const wchar_t *s,
 /*
  * pmemobj_free -- frees an existing object
  */
-void
-pmemobj_free(PMEMoid *oidp)
-{
-	ASSERTne(oidp, NULL);
-
-	LOG(3, "oid.off 0x%016" PRIx64, oidp->off);
-
-	/* log notice message if used inside a transaction */
-	_POBJ_DEBUG_NOTICE_IN_TX();
-
-	if (oidp->off == 0)
-		return;
-
-	PMEMOBJ_API_START();
-	PMEMobjpool *pop = pmemobj_pool_by_oid(*oidp);
-
-	ASSERTne(pop, NULL);
-	ASSERT(OBJ_OID_IS_VALID(pop, *oidp));
-
-	obj_free(pop, oidp);
-	PMEMOBJ_API_END();
-}
+// void
+// pmemobj_free_no_asan(PMEMoid *oidp)
+// {
+// 	ASSERTne(oidp, NULL);
+//
+// 	LOG(3, "oid.off 0x%016" PRIx64, oidp->off);
+//
+// 	/* log notice message if used inside a transaction */
+// 	_POBJ_DEBUG_NOTICE_IN_TX();
+//
+// 	if (oidp->off == 0)
+// 		return;
+//
+// 	PMEMOBJ_API_START();
+// 	PMEMobjpool *pop = pmemobj_pool_by_oid(*oidp);
+//
+// 	ASSERTne(pop, NULL);
+// 	ASSERT(OBJ_OID_IS_VALID(pop, *oidp));
+//
+// 	obj_free(pop, oidp);
+// 	PMEMOBJ_API_END();
+// }
 
 /*
  * pmemobj_alloc_usable_size -- returns usable size of object
@@ -2786,7 +2786,7 @@ pmemobj_drain(PMEMobjpool *pop)
  * pmemobj_type_num -- returns type number of object
  */
 uint64_t
-pmemobj_type_num(PMEMoid oid)
+pmemobj_type_num_no_asan(PMEMoid oid)
 {
 	LOG(3, "oid.off 0x%016" PRIx64, oid.off);
 
