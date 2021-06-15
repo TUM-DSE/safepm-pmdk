@@ -33,16 +33,16 @@ static PMEMoid alloc_additional_work(PMEMoid orig, size_t size) {
 	uint8_t* direct = (uint8_t*)pmemobj_direct(orig);
 	PMEMoid shadow = pmemobj_asan_oid2psm(orig);
 
-	int res = pmemobj_tx_add_range(shadow, orig.off/8, (2*pmemobj_asan_RED_ZONE_SIZE+size+7)/8);
+	int res = pmemobj_tx_add_range(shadow, orig.off/8, (2*pmdk_asan_RED_ZONE_SIZE+size+7)/8);
 	if (res) {
 		return OID_NULL;
 	}
 	
-	pmemobj_asan_mark_mem(direct, pmemobj_asan_RED_ZONE_SIZE, pmemobj_asan_LEFT_REDZONE);
-	pmemobj_asan_mark_mem(direct+pmemobj_asan_RED_ZONE_SIZE, size, pmemobj_asan_ADDRESSABLE); // In case it was poisoned by an earlier free
-	pmemobj_asan_mark_mem(direct+pmemobj_asan_RED_ZONE_SIZE+size, pmemobj_asan_RED_ZONE_SIZE, pmemobj_asan_RIGHT_REDZONE);
+	pmdk_asan_mark_mem(direct, pmdk_asan_RED_ZONE_SIZE, pmdk_asan_LEFT_REDZONE);
+	pmdk_asan_mark_mem(direct+pmdk_asan_RED_ZONE_SIZE, size, pmdk_asan_ADDRESSABLE); // In case it was poisoned by an earlier free
+	pmdk_asan_mark_mem(direct+pmdk_asan_RED_ZONE_SIZE+size, pmdk_asan_RED_ZONE_SIZE, pmdk_asan_RIGHT_REDZONE);
 
-	orig.off += pmemobj_asan_RED_ZONE_SIZE;
+	orig.off += pmdk_asan_RED_ZONE_SIZE;
 	return orig;
 }
 
@@ -118,15 +118,15 @@ PMEMobjpool *pmemobj_create(const char *path, const char *real_layout, size_t po
 	uint8_t* vmem_shadow_mem_start = pmemobj_direct(rootp->shadow_mem);
 
 	// Mark eerything until the heap "metadata"
-	pmemobj_memset_persist(pool, vmem_shadow_mem_start, pmemobj_asan_METADATA, pool->heap_offset/8);
+	pmemobj_memset_persist(pool, vmem_shadow_mem_start, pmdk_asan_METADATA, pool->heap_offset/8);
 
 	// Mark the entire heap "freed"
-	pmemobj_memset_persist(pool, vmem_shadow_mem_start + pool->heap_offset/8, pmemobj_asan_FREED, pool->heap_size/8);
+	pmemobj_memset_persist(pool, vmem_shadow_mem_start + pool->heap_offset/8, pmdk_asan_FREED, pool->heap_size/8);
 	
 	// Mark the red zone within the persistent shadow mem
 	// The red zone corresponding to the volatile persistent memory range is marked non-accessible on a page permission level, because filling the red zone with -1 would allocate physical memory.
 	// We need not resort to such a trick, as we allocate all persistent shadow memory during pool creation.
-	pmemobj_memset_persist(pool, vmem_shadow_mem_start + rootp->shadow_mem.off/8, pmemobj_asan_INTERNAL, shadow_size/8); // Note that because of the overmapping, the change will be mirrored to the overmapped shadow memory.
+	pmemobj_memset_persist(pool, vmem_shadow_mem_start + rootp->shadow_mem.off/8, pmdk_asan_INTERNAL, shadow_size/8); // Note that because of the overmapping, the change will be mirrored to the overmapped shadow memory.
 	
 	return pool;
 }
@@ -176,15 +176,15 @@ size_t pmemobj_root_size(PMEMobjpool *pool) {
 
 PMEMoid pmemobj_tx_alloc(size_t size, uint64_t type_num) {
 	//TODO: A custom allocator could save us one redzone per object.
-	PMEMoid orig = pmemobj_tx_alloc_no_asan(size+2*pmemobj_asan_RED_ZONE_SIZE, type_num+TOID_TYPE_NUM(struct pmemobj_asan_end));
+	PMEMoid orig = pmemobj_tx_alloc_no_asan(size+2*pmdk_asan_RED_ZONE_SIZE, type_num+TOID_TYPE_NUM(struct pmemobj_asan_end));
 	return alloc_additional_work(orig, size);
 }
 
 int pmemobj_tx_free(PMEMoid oid) {
-	uint8_t* shadow_object_start = pmemobj_asan_get_shadow_mem_location(pmemobj_direct(oid));
+	uint8_t* shadow_object_start = pmdk_asan_get_shadow_mem_location(pmemobj_direct(oid));
 	assert((int8_t)(*shadow_object_start) >= 0 && "Invalid free");
-	assert(*(shadow_object_start-1) == pmemobj_asan_LEFT_REDZONE && "Invalid free");
-	PMEMoid redzone_start={.pool_uuid_lo = oid.pool_uuid_lo, .off = oid.off - pmemobj_asan_RED_ZONE_SIZE};
+	assert(*(shadow_object_start-1) == pmdk_asan_LEFT_REDZONE && "Invalid free");
+	PMEMoid redzone_start={.pool_uuid_lo = oid.pool_uuid_lo, .off = oid.off - pmdk_asan_RED_ZONE_SIZE};
 	int res;
 	if ((res = pmemobj_tx_free_no_asan(redzone_start))) // TODO: Quarantine the region to provide additional temporal safety
 		return res;
@@ -193,7 +193,7 @@ int pmemobj_tx_free(PMEMoid oid) {
 	PMEMoid shadow_oid = pmemobj_asan_oid2psm(oid);
 	if ((res = pmemobj_tx_add_range(shadow_oid, redzone_start.off/8, size/8)))
 		return res;
-	pmemobj_asan_mark_mem(pmemobj_direct(redzone_start), size, pmemobj_asan_FREED);
+	pmdk_asan_mark_mem(pmemobj_direct(redzone_start), size, pmdk_asan_FREED);
 
 	return 0;
 }
@@ -210,16 +210,16 @@ pmemobj_alloc_usable_size(PMEMoid oid) {
 	if (OID_IS_NULL(oid))
 		return 0;
 
-	oid.off -= pmemobj_asan_RED_ZONE_SIZE;
+	oid.off -= pmdk_asan_RED_ZONE_SIZE;
 	size_t res = pmemobj_alloc_usable_size_no_asan(oid);
 	if (res == 0)
 		return 0;
-	return res - 2*pmemobj_asan_RED_ZONE_SIZE;
+	return res - 2*pmdk_asan_RED_ZONE_SIZE;
 }
 uint64_t
 pmemobj_type_num(PMEMoid oid) {
 	ASSERT(!OID_IS_NULL(oid));
-	oid.off -= pmemobj_asan_RED_ZONE_SIZE;
+	oid.off -= pmdk_asan_RED_ZONE_SIZE;
 	return pmemobj_type_num_no_asan(oid) - TOID_TYPE_NUM(struct pmemobj_asan_end);
 }
 int pmemobj_alloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
@@ -280,23 +280,23 @@ pmemobj_first(PMEMobjpool *pop) {
 	if (OID_IS_NULL(res))
 		return res;
 	if (pmemobj_type_num_no_asan(res) < TOID_TYPE_NUM(struct pmemobj_asan_end)) {
-		res.off += pmemobj_asan_RED_ZONE_SIZE; // kartal TODO: Once we backport the redzone-as-object-header approach, we won't need all this pointer juggling
+		res.off += pmdk_asan_RED_ZONE_SIZE; // kartal TODO: Once we backport the redzone-as-object-header approach, we won't need all this pointer juggling
 		return pmemobj_next(res);
 	}
-	res.off += pmemobj_asan_RED_ZONE_SIZE;
+	res.off += pmdk_asan_RED_ZONE_SIZE;
 	return res;
 }
 PMEMoid
 pmemobj_next(PMEMoid oid) {
-	oid.off -= pmemobj_asan_RED_ZONE_SIZE;
+	oid.off -= pmdk_asan_RED_ZONE_SIZE;
 	PMEMoid res = pmemobj_next_no_asan(oid);
 	if (OID_IS_NULL(res))
 		return res;
 	if (pmemobj_type_num_no_asan(res) < TOID_TYPE_NUM(struct pmemobj_asan_end)) {
-		res.off += pmemobj_asan_RED_ZONE_SIZE;
+		res.off += pmdk_asan_RED_ZONE_SIZE;
 		return pmemobj_next(res);
 	}
-	res.off += pmemobj_asan_RED_ZONE_SIZE;
+	res.off += pmdk_asan_RED_ZONE_SIZE;
 	return res;
 }
 

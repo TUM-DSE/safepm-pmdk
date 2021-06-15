@@ -14,7 +14,7 @@ shadow memory location: 0x7fff7000..0x10007FFF8000
     ->storing the call stack, which is composed of volatile/randomized pointers, is probably not helpful in the context of persistent memory
 */
 
-uint8_t* pmemobj_asan_get_shadow_mem_location(void* _p) {
+uint8_t* pmdk_asan_get_shadow_mem_location(void* _p) {
 		  uint64_t p = (uint64_t)_p;
 		  return (uint8_t*)((p>>3)+0x7fff8000);
 }
@@ -22,7 +22,7 @@ uint8_t* pmemobj_asan_get_shadow_mem_location(void* _p) {
 // Even with no_sanitize, calls to memset get intercepted by ASan,
 //  which is uncomfortable with us directly modifying the shadow memory
 __attribute__((no_sanitize("address")))
-void pmemobj_asan_memset(void* start_, uint8_t byt, size_t len) {
+void pmdk_asan_memset(void* start_, uint8_t byt, size_t len) {
 	uint8_t* start = start_;
 	while (len) {
 		*start = byt;
@@ -32,7 +32,7 @@ void pmemobj_asan_memset(void* start_, uint8_t byt, size_t len) {
 }
 
 __attribute__((no_sanitize("address")))
-void pmemobj_asan_memcpy(void* dest_, const void* src_, size_t len) {
+void pmdk_asan_memcpy(void* dest_, const void* src_, size_t len) {
         uint8_t* dest = (uint8_t*)dest_;
         const uint8_t* src = (const uint8_t*)src_;
         while (len) {
@@ -45,7 +45,7 @@ void pmemobj_asan_memcpy(void* dest_, const void* src_, size_t len) {
 
 // len in bytes
 __attribute__((no_sanitize("address")))
-void pmemobj_asan_mark_mem(void* start, size_t len, uint8_t tag) {
+void pmdk_asan_mark_mem(void* start, size_t len, uint8_t tag) {
 	assert((int8_t)tag <= 0);
 	if ((uint64_t)start%8) {
 		uint64_t misalignment = (uint64_t)start%8;
@@ -54,10 +54,10 @@ void pmemobj_asan_mark_mem(void* start, size_t len, uint8_t tag) {
 		start = (void*)((uint64_t)start+8-misalignment);
 		len -= 8-misalignment;
 	}
-	pmemobj_asan_memset(pmemobj_asan_get_shadow_mem_location(start), tag, len/8);
+	pmdk_asan_memset(pmdk_asan_get_shadow_mem_location(start), tag, len/8);
 	if (len%8) {
 		int prot = len%8;
-		uint8_t* shadow_pos = pmemobj_asan_get_shadow_mem_location((uint8_t*)start+len);
+		uint8_t* shadow_pos = pmdk_asan_get_shadow_mem_location((uint8_t*)start+len);
 		if (tag)
 			*shadow_pos = tag; // We don't really need to check the previous value of *shadow_start here, because pmemobj would not distribute the same 8-byte chunk to multiple objects.
 		else

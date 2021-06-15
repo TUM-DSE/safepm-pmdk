@@ -1356,10 +1356,10 @@ memblock_run_init(struct palloc_heap *heap,
 	size_t bitmap_size = b.size;
 
 	/* set all the bits */
-	pmemobj_asan_memset(b.values, 0xFF, bitmap_size);
+	pmdk_asan_memset(b.values, 0xFF, bitmap_size);
 
 	/* clear only the bits available for allocations from this bucket */
-	pmemobj_asan_memset(b.values, 0, sizeof(*b.values) * (b.nvalues - 1));
+	pmdk_asan_memset(b.values, 0, sizeof(*b.values) * (b.nvalues - 1));
 
 	unsigned trailing_bits = b.nbits % RUN_BITS_PER_VALUE;
 	uint64_t last_value = UINT64_MAX << trailing_bits;
