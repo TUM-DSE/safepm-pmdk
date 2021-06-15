@@ -25,6 +25,7 @@
 #include "os.h"
 #include "out.h"
 #include "mmap.h"
+#include "asan.h"
 
 #define DEVICE_DAX_ZERO_LEN (2 * MEGABYTE)
 

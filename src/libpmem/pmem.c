@@ -152,6 +152,7 @@
 #include "valgrind_internal.h"
 #include "os_deep.h"
 #include "auto_flush.h"
+#include "asan.h"
 
 struct pmem_funcs {
 	memmove_nodrain_func memmove_nodrain;

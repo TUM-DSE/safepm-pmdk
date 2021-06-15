@@ -151,7 +151,7 @@ ulog_construct(uint64_t offset, size_t capacity, uint64_t gen_num,
 	ulog->next = 0;
 	ulog->gen_num = gen_num;
 	ulog->flags = flags;
-	memset(ulog->unused, 0, sizeof(ulog->unused));
+	pmdk_asan_memset(ulog->unused, 0, sizeof(ulog->unused));
 
 	/* we only need to zero out the header of ulog's first entry */
 	size_t zeroed_data = CACHELINE_ALIGN(sizeof(struct ulog_entry_base));
@@ -168,7 +168,7 @@ ulog_construct(uint64_t offset, size_t capacity, uint64_t gen_num,
 		 * We want to avoid replicating zeroes for every ulog of every
 		 * lane, to do that, we need to use plain old memset.
 		 */
-		memset(ulog->data, 0, zeroed_data);
+		pmdk_asan_memset(ulog->data, 0, zeroed_data);
 	}
 
 	VALGRIND_REMOVE_FROM_TX(ulog, SIZEOF_ULOG(capacity));
@@ -449,8 +449,8 @@ ulog_entry_buf_create(struct ulog *ulog, size_t offset, uint64_t gen_num,
 
 	size_t bdatasize = CACHELINE_SIZE - sizeof(struct ulog_entry_buf);
 	size_t ncopy = MIN(size, bdatasize);
-	pmdk_asan_memcpy(b->data, src, ncopy);
-	pmdk_asan_memset(b->data + ncopy, 0, bdatasize - ncopy);
+	pmdk_asan_memcpy(b->data, src, ncopy); // We do an asan-exempt memcpy here, because we use tx_add to add changes to the persistent shadow memory, which is marked inaccessible in the shadow memory.
+	memset(b->data + ncopy, 0, bdatasize - ncopy);
 
 	size_t remaining_size = ncopy > size ? 0 : size - ncopy;
 
@@ -461,7 +461,7 @@ ulog_entry_buf_create(struct ulog *ulog, size_t offset, uint64_t gen_num,
 	uint8_t last_cacheline[CACHELINE_SIZE];
 	if (lcopy != 0) {
 		pmdk_asan_memcpy(last_cacheline, srcof + rcopy, lcopy);
-		pmdk_asan_memset(last_cacheline + lcopy, 0, CACHELINE_SIZE - lcopy);
+		memset(last_cacheline + lcopy, 0, CACHELINE_SIZE - lcopy);
 	}
 
 	if (rcopy != 0) {
