@@ -39,7 +39,8 @@ SOURCE +=\
 	$(PMEM2)/deep_flush_linux.c\
 	$(PMEM2)/extent_linux.c\
 	$(PMEM2)/pmem2_utils_linux.c\
-	$(PMEM2)/pmem2_utils_$(OS_DIMM).c
+	$(PMEM2)/pmem2_utils_$(OS_DIMM).c\
+	$(COMMON)/asan.c
 else
 SOURCE +=\
 	$(PMEM2)/auto_flush_none.c\
