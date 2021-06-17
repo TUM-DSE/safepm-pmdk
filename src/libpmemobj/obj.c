@@ -2307,20 +2307,20 @@ struct carg_realloc {
 /*
  * obj_free -- (internal) free an object
  */
-static void
-obj_free(PMEMobjpool *pop, PMEMoid *oidp)
-{
-	ASSERTne(oidp, NULL);
-
-	struct operation_context *ctx = pmalloc_operation_hold(pop);
-
-	operation_add_entry(ctx, &oidp->pool_uuid_lo, 0, ULOG_OPERATION_SET);
-
-	palloc_operation(&pop->heap, oidp->off, &oidp->off, 0, NULL, NULL,
-			0, 0, 0, 0, ctx);
-
-	pmalloc_operation_release(pop);
-}
+// static void
+// obj_free(PMEMobjpool *pop, PMEMoid *oidp)
+// {
+// 	ASSERTne(oidp, NULL);
+//
+// 	struct operation_context *ctx = pmalloc_operation_hold(pop);
+//
+// 	operation_add_entry(ctx, &oidp->pool_uuid_lo, 0, ULOG_OPERATION_SET);
+//
+// 	palloc_operation(&pop->heap, oidp->off, &oidp->off, 0, NULL, NULL,
+// 			0, 0, 0, 0, ctx);
+//
+// 	pmalloc_operation_release(pop);
+// }
 
 /*
  * constructor_realloc -- (internal) constructor for pmemobj_realloc
@@ -2354,51 +2354,51 @@ constructor_realloc(void *ctx, void *ptr, size_t usable_size, void *arg)
  * obj_realloc_common -- (internal) common routine for resizing
  *                          existing objects
  */
-static int
-obj_realloc_common(PMEMobjpool *pop,
-	PMEMoid *oidp, size_t size, type_num_t type_num, int zero_init)
-{
-	/* if OID is NULL just allocate memory */
-	if (OBJ_OID_IS_NULL(*oidp)) {
-		/* if size is 0 - do nothing */
-		if (size == 0)
-			return 0;
-
-		return obj_alloc_construct(pop, oidp, size, type_num,
-				POBJ_FLAG_ZERO, NULL, NULL);
-	}
-
-	if (size > PMEMOBJ_MAX_ALLOC_SIZE) {
-		ERR("requested size too large");
-		errno = ENOMEM;
-		return -1;
-	}
-
-	/* if size is 0 just free */
-	if (size == 0) {
-		obj_free(pop, oidp);
-		return 0;
-	}
-
-	struct carg_realloc carg;
-	carg.ptr = OBJ_OFF_TO_PTR(pop, oidp->off);
-	carg.new_size = size;
-	carg.old_size = pmemobj_alloc_usable_size(*oidp);
-	carg.user_type = type_num;
-	carg.constructor = NULL;
-	carg.arg = NULL;
-	carg.zero_init = zero_init;
-
-	struct operation_context *ctx = pmalloc_operation_hold(pop);
-
-	int ret = palloc_operation(&pop->heap, oidp->off, &oidp->off,
-			size, constructor_realloc, &carg, type_num,
-			0, 0, 0, ctx);
-
-	pmalloc_operation_release(pop);
-
-	return ret;
-}
+// static int
+// obj_realloc_common(PMEMobjpool *pop,
+// 	PMEMoid *oidp, size_t size, type_num_t type_num, int zero_init)
+// {
+// 	/* if OID is NULL just allocate memory */
+// 	if (OBJ_OID_IS_NULL(*oidp)) {
+// 		/* if size is 0 - do nothing */
+// 		if (size == 0)
+// 			return 0;
+//
+// 		return obj_alloc_construct(pop, oidp, size, type_num,
+// 				POBJ_FLAG_ZERO, NULL, NULL);
+// 	}
+//
+// 	if (size > PMEMOBJ_MAX_ALLOC_SIZE) {
+// 		ERR("requested size too large");
+// 		errno = ENOMEM;
+// 		return -1;
+// 	}
+//
+// 	/* if size is 0 just free */
+// 	if (size == 0) {
+// 		obj_free(pop, oidp);
+// 		return 0;
+// 	}
+//
+// 	struct carg_realloc carg;
+// 	carg.ptr = OBJ_OFF_TO_PTR(pop, oidp->off);
+// 	carg.new_size = size;
+// 	carg.old_size = pmemobj_alloc_usable_size_no_asan(*oidp);
+// 	carg.user_type = type_num;
+// 	carg.constructor = NULL;
+// 	carg.arg = NULL;
+// 	carg.zero_init = zero_init;
+//
+// 	struct operation_context *ctx = pmalloc_operation_hold(pop);
+//
+// 	int ret = palloc_operation(&pop->heap, oidp->off, &oidp->off,
+// 			size, constructor_realloc, &carg, type_num,
+// 			0, 0, 0, ctx);
+//
+// 	pmalloc_operation_release(pop);
+//
+// 	return ret;
+// }
 
 /*
  * constructor_zrealloc_root -- (internal) constructor for pmemobj_root
@@ -2429,49 +2429,49 @@ constructor_zrealloc_root(void *ctx, void *ptr, size_t usable_size, void *arg)
 /*
  * pmemobj_realloc -- resizes an existing object
  */
-int
-pmemobj_realloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
-		uint64_t type_num)
-{
-	ASSERTne(oidp, NULL);
-
-	LOG(3, "pop %p oid.off 0x%016" PRIx64 " size %zu type_num %" PRIu64,
-		pop, oidp->off, size, type_num);
-
-	PMEMOBJ_API_START();
-	/* log notice message if used inside a transaction */
-	_POBJ_DEBUG_NOTICE_IN_TX();
-	ASSERT(OBJ_OID_IS_VALID(pop, *oidp));
-
-	int ret = obj_realloc_common(pop, oidp, size, (type_num_t)type_num, 0);
-
-	PMEMOBJ_API_END();
-	return ret;
-}
+// int
+// pmemobj_realloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+// 		uint64_t type_num)
+// {
+// 	ASSERTne(oidp, NULL);
+//
+// 	LOG(3, "pop %p oid.off 0x%016" PRIx64 " size %zu type_num %" PRIu64,
+// 		pop, oidp->off, size, type_num);
+//
+// 	PMEMOBJ_API_START();
+// 	/* log notice message if used inside a transaction */
+// 	_POBJ_DEBUG_NOTICE_IN_TX();
+// 	ASSERT(OBJ_OID_IS_VALID(pop, *oidp));
+//
+// 	int ret = obj_realloc_common(pop, oidp, size, (type_num_t)type_num, 0);
+//
+// 	PMEMOBJ_API_END();
+// 	return ret;
+// }
 
 /*
  * pmemobj_zrealloc -- resizes an existing object, any new space is zeroed.
  */
-int
-pmemobj_zrealloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
-		uint64_t type_num)
-{
-	ASSERTne(oidp, NULL);
-
-	LOG(3, "pop %p oid.off 0x%016" PRIx64 " size %zu type_num %" PRIu64,
-		pop, oidp->off, size, type_num);
-
-	PMEMOBJ_API_START();
-
-	/* log notice message if used inside a transaction */
-	_POBJ_DEBUG_NOTICE_IN_TX();
-	ASSERT(OBJ_OID_IS_VALID(pop, *oidp));
-
-	int ret = obj_realloc_common(pop, oidp, size, (type_num_t)type_num, 1);
-
-	PMEMOBJ_API_END();
-	return ret;
-}
+// int
+// pmemobj_zrealloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+// 		uint64_t type_num)
+// {
+// 	ASSERTne(oidp, NULL);
+//
+// 	LOG(3, "pop %p oid.off 0x%016" PRIx64 " size %zu type_num %" PRIu64,
+// 		pop, oidp->off, size, type_num);
+//
+// 	PMEMOBJ_API_START();
+//
+// 	/* log notice message if used inside a transaction */
+// 	_POBJ_DEBUG_NOTICE_IN_TX();
+// 	ASSERT(OBJ_OID_IS_VALID(pop, *oidp));
+//
+// 	int ret = obj_realloc_common(pop, oidp, size, (type_num_t)type_num, 1);
+//
+// 	PMEMOBJ_API_END();
+// 	return ret;
+// }
 
 /* arguments for constructor_strdup */
 struct carg_strdup {
@@ -3153,9 +3153,9 @@ pmemobj_list_insert(PMEMobjpool *pop, size_t pe_offset, void *head,
 	ASSERT(OBJ_OID_IS_VALID(pop, oid));
 	ASSERT(OBJ_OID_IS_VALID(pop, dest));
 
-	ASSERT(pe_offset <= pmemobj_alloc_usable_size(dest)
+	ASSERT(pe_offset <= pmemobj_alloc_usable_size_no_asan(dest)
 			- sizeof(struct list_entry));
-	ASSERT(pe_offset <= pmemobj_alloc_usable_size(oid)
+	ASSERT(pe_offset <= pmemobj_alloc_usable_size_no_asan(oid)
 			- sizeof(struct list_entry));
 
 	int ret = list_insert(pop, (ssize_t)pe_offset, head, dest, before, oid);
@@ -3181,7 +3181,7 @@ pmemobj_list_insert_new(PMEMobjpool *pop, size_t pe_offset, void *head,
 	_POBJ_DEBUG_NOTICE_IN_TX();
 	ASSERT(OBJ_OID_IS_VALID(pop, dest));
 
-	ASSERT(pe_offset <= pmemobj_alloc_usable_size(dest)
+	ASSERT(pe_offset <= pmemobj_alloc_usable_size_no_asan(dest)
 			- sizeof(struct list_entry));
 	ASSERT(pe_offset <= size - sizeof(struct list_entry));
 
@@ -3221,7 +3221,7 @@ pmemobj_list_remove(PMEMobjpool *pop, size_t pe_offset, void *head,
 	_POBJ_DEBUG_NOTICE_IN_TX();
 	ASSERT(OBJ_OID_IS_VALID(pop, oid));
 
-	ASSERT(pe_offset <= pmemobj_alloc_usable_size(oid)
+	ASSERT(pe_offset <= pmemobj_alloc_usable_size_no_asan(oid)
 			- sizeof(struct list_entry));
 
 	int ret;
@@ -3255,13 +3255,13 @@ pmemobj_list_move(PMEMobjpool *pop, size_t pe_old_offset, void *head_old,
 	ASSERT(OBJ_OID_IS_VALID(pop, oid));
 	ASSERT(OBJ_OID_IS_VALID(pop, dest));
 
-	ASSERT(pe_old_offset <= pmemobj_alloc_usable_size(oid)
+	ASSERT(pe_old_offset <= pmemobj_alloc_usable_size_no_asan(oid)
 			- sizeof(struct list_entry));
-	ASSERT(pe_new_offset <= pmemobj_alloc_usable_size(oid)
+	ASSERT(pe_new_offset <= pmemobj_alloc_usable_size_no_asan(oid)
 			- sizeof(struct list_entry));
-	ASSERT(pe_old_offset <= pmemobj_alloc_usable_size(dest)
+	ASSERT(pe_old_offset <= pmemobj_alloc_usable_size_no_asan(dest)
 			- sizeof(struct list_entry));
-	ASSERT(pe_new_offset <= pmemobj_alloc_usable_size(dest)
+	ASSERT(pe_new_offset <= pmemobj_alloc_usable_size_no_asan(dest)
 			- sizeof(struct list_entry));
 
 	int ret = list_move(pop, pe_old_offset, head_old,

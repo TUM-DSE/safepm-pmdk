@@ -51,6 +51,8 @@ PMEMoid
 pmemobj_tx_alloc_no_asan(size_t size, uint64_t type_num);
 int
 pmemobj_tx_free_no_asan(PMEMoid oid);
+PMEMoid
+pmemobj_tx_realloc_no_asan(PMEMoid oid, size_t size, uint64_t type_num);
 
 #ifdef __cplusplus
 }

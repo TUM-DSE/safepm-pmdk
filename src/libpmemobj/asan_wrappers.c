@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <set.h>
 #include "os.h"
+#include "tx.h"
 
 static PMEMoid pmemobj_asan_pool2psm(PMEMobjpool* pool) {
 	PMEMoid rootp_ = pmemobj_root_no_asan(pool, sizeof(struct pmemobj_asan_root)); // TODO: A tighter integration with libpmemobj could let us avoid re-retrieving the persistent shadow memory location for each operation
@@ -202,7 +203,7 @@ PMEMoid pmemobj_tx_zalloc(size_t size, uint64_t type_num) {
 	if (OID_IS_NULL(user))
 		return user;
 
-	memset(pmemobj_direct(user), 0, size);
+	TX_MEMSET(pmemobj_direct(user), 0, size);
 	return user;
 }
 size_t
@@ -210,11 +211,20 @@ pmemobj_alloc_usable_size(PMEMoid oid) {
 	if (OID_IS_NULL(oid))
 		return 0;
 
+	uint8_t* user_start = pmemobj_direct(oid);
+
 	oid.off -= pmdk_asan_RED_ZONE_SIZE;
 	size_t res = pmemobj_alloc_usable_size_no_asan(oid);
 	if (res == 0)
 		return 0;
-	return res - 2*pmdk_asan_RED_ZONE_SIZE;
+	oid.off += res-pmdk_asan_RED_ZONE_SIZE;
+	uint8_t* ptr = pmemobj_direct(oid);
+	while (*pmdk_asan_get_shadow_mem_location(ptr) < 0) // Skip the padding
+		ptr--;
+	assert(ptr >= user_start);
+	uint8_t leftover = *pmdk_asan_get_shadow_mem_location(ptr);
+	if (leftover == 0) leftover = 8;
+	return (size_t)(ptr - user_start)*8 + leftover;
 }
 uint64_t
 pmemobj_type_num(PMEMoid oid) {
@@ -300,9 +310,73 @@ pmemobj_next(PMEMoid oid) {
 	return res;
 }
 
-//PMEMoid spmemobj_tx_realloc(PMEMoid oid, size_t size, uint64_t type_num);
-//PMEMoid spmemobj_tx_zrealloc(PMEMoid oid, size_t size, uint64_t type_num);
+static PMEMoid pmemobj_tx_realloc_(PMEMoid oid, size_t size, uint64_t type_num, int should_zero) {
+	uint64_t old_user_size = pmemobj_alloc_usable_size(oid); // This is the user-addressable size, that is, excluding the red zones as well as any padding, if exists.
+	if (! OID_IS_NULL(oid))
+		oid.off -= pmdk_asan_RED_ZONE_SIZE;
+	uint64_t old_usable_size = pmemobj_alloc_usable_size_no_asan(oid);
+	PMEMoid res = pmemobj_tx_realloc_no_asan(oid, size + 2*pmdk_asan_RED_ZONE_SIZE, type_num + TOID_TYPE_NUM(struct pmemobj_asan_end)); // If the object gets moved, this line will also move the redzones, which is currently pointless, as they don't store information.
+	if (OID_IS_NULL(res))
+		return res;
+	if (res.off != oid.off) { // The object moved, mark the previous region FREED
+		PMEMoid shadow_oid = pmemobj_asan_oid2psm(oid);
+		if (pmemobj_tx_add_range(shadow_oid, oid.off/8, old_usable_size/8)) {
+			return OID_NULL;
+		}
+		//pmdk_asan_mark_mem(pmemobj_direct(oid), old_usable_size, pmdk_asan_FREED);
+	}
+	oid = alloc_additional_work(res, size); // kartal TODO: An optimization might be to avoid modifying the shadow memory if the new size == old size
+	if (should_zero && size > old_user_size)
+		TX_MEMSET((uint8_t*)pmemobj_direct(oid)+old_user_size, 0, size - old_user_size);
+	return oid;
+}
+
+PMEMoid pmemobj_tx_realloc(PMEMoid oid, size_t size, uint64_t type_num) {
+	return pmemobj_tx_realloc_(oid, size, type_num, 0);
+}
+
+PMEMoid pmemobj_tx_zrealloc(PMEMoid oid, size_t size, uint64_t type_num) {
+	return pmemobj_tx_realloc_(oid, size, type_num, 1);
+}
+
+int pmemobj_realloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type_num) {
+	ASSERTne(oidp, NULL);
+	int ret = 0;
+	TX_BEGIN(pop) {
+		PMEMoid oid = pmemobj_tx_realloc(*oidp, size, type_num); // Note that this is an asan-aware re-allocation
+		if ((uint8_t*)oidp >= (uint8_t*)pop + pop->heap_offset &&
+				(uint8_t*)oidp < (uint8_t*)pop + pop->heap_offset + pop->heap_size) {
+				pmemobj_tx_add_range_direct(oidp, sizeof(PMEMoid));
+		}
+		*oidp = oid;
+	} TX_ONABORT {
+		ret = -1;
+	} TX_END
+
+	return ret;
+}
+
+int pmemobj_zrealloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type_num) {
+	ASSERTne(oidp, NULL);
+	int ret = 0;
+	TX_BEGIN(pop) {
+		PMEMoid oid = pmemobj_tx_zrealloc(*oidp, size, type_num); // Note that this is an asan-aware re-allocation
+		if ((uint8_t*)oidp >= (uint8_t*)pop + pop->heap_offset &&
+				(uint8_t*)oidp < (uint8_t*)pop + pop->heap_offset + pop->heap_size) {
+				pmemobj_tx_add_range_direct(oidp, sizeof(PMEMoid));
+		}
+		*oidp = oid;
+	} TX_ONABORT {
+		ret = -1;
+	} TX_END
+
+	return ret;
+}
+
+//PMEMoid pmemobj_tx_xalloc(size_t size, uint64_t type_num, uint64_t flags);
+//int pmemobj_tx_xfree(PMEMoid oid, uint64_t flags);
 //PMEMoid spmemobj_tx_strdup(const char *s, uint64_t type_num);
-//int pmemobj_realloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type_num);
-//int pmemobj_zrealloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type_num);
+//PMEMoid pmemobj_tx_xstrdup(const char *s, uint64_t type_num, uint64_t flags);
+//PMEMoid pmemobj_tx_wcsdup(const wchar_t *s, uint64_t type_num);
+//PMEMoid pmemobj_tx_xwcsdup(const wchar_t *s, uint64_t type_num, uint64_t flags);
 //int pmemobj_strdup(PMEMobjpool *pop, PMEMoid *oidp, const char *s, uint64_t type_num);

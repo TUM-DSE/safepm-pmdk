@@ -16,6 +16,7 @@
 #include "tx.h"
 #include "valgrind_internal.h"
 #include "memops.h"
+#include "asan.h"
 
 struct tx_data {
 	PMDK_SLIST_ENTRY(tx_data) tx_entry;
@@ -228,7 +229,7 @@ constructor_tx_alloc(void *ctx, void *ptr, size_t usable_size, void *arg)
 		memset(ptr, 0, usable_size);
 
 	if (args->copy_ptr && args->copy_size != 0) {
-		memcpy(ptr, args->copy_ptr, args->copy_size);
+		pmdk_asan_memcpy(ptr, args->copy_ptr, args->copy_size);
 	}
 
 	return 0;
@@ -633,7 +634,7 @@ tx_realloc_common(struct tx *tx, PMEMoid oid, size_t size, uint64_t type_num,
 
 	/* if size is 0 just free */
 	if (size == 0) {
-		if (pmemobj_tx_free(oid)) {
+		if (pmemobj_tx_free_no_asan(oid)) {
 			ERR("pmemobj_tx_free failed");
 			return oid;
 		} else {
@@ -651,7 +652,7 @@ tx_realloc_common(struct tx *tx, PMEMoid oid, size_t size, uint64_t type_num,
 			constructor_realloc, COPY_ARGS(flags, ptr, copy_size));
 
 	if (!OBJ_OID_IS_NULL(new_obj)) {
-		if (pmemobj_tx_free(oid)) {
+		if (pmemobj_tx_free_no_asan(oid)) {
 			ERR("pmemobj_tx_free failed");
 			VEC_POP_BACK(&tx->actions);
 			return OID_NULL;
@@ -1643,7 +1644,7 @@ pmemobj_tx_xalloc(size_t size, uint64_t type_num, uint64_t flags)
  * pmemobj_tx_realloc -- resizes an existing object
  */
 PMEMoid
-pmemobj_tx_realloc(PMEMoid oid, size_t size, uint64_t type_num)
+pmemobj_tx_realloc_no_asan(PMEMoid oid, size_t size, uint64_t type_num)
 {
 	LOG(3, NULL);
 	struct tx *tx = get_tx();
@@ -1661,22 +1662,22 @@ pmemobj_tx_realloc(PMEMoid oid, size_t size, uint64_t type_num)
 /*
  * pmemobj_zrealloc -- resizes an existing object, any new space is zeroed.
  */
-PMEMoid
-pmemobj_tx_zrealloc(PMEMoid oid, size_t size, uint64_t type_num)
-{
-	LOG(3, NULL);
-	struct tx *tx = get_tx();
-
-	ASSERT_IN_TX(tx);
-	ASSERT_TX_STAGE_WORK(tx);
-
-	PMEMOBJ_API_START();
-	PMEMoid ret = tx_realloc_common(tx, oid, size, type_num,
-			constructor_tx_alloc, constructor_tx_alloc,
-			POBJ_FLAG_ZERO);
-	PMEMOBJ_API_END();
-	return ret;
-}
+// PMEMoid
+// pmemobj_tx_zrealloc(PMEMoid oid, size_t size, uint64_t type_num)
+// {
+// 	LOG(3, NULL);
+// 	struct tx *tx = get_tx();
+//
+// 	ASSERT_IN_TX(tx);
+// 	ASSERT_TX_STAGE_WORK(tx);
+//
+// 	PMEMOBJ_API_START();
+// 	PMEMoid ret = tx_realloc_common(tx, oid, size, type_num,
+// 			constructor_tx_alloc, constructor_tx_alloc,
+// 			POBJ_FLAG_ZERO);
+// 	PMEMOBJ_API_END();
+// 	return ret;
+// }
 
 /*
  * pmemobj_tx_xstrdup -- allocates a new object with duplicate of the string s.
