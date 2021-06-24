@@ -97,6 +97,8 @@ CXXFLAGS += -Wno-invalid-offsetof
 CXXFLAGS += -Wpointer-arith
 CXXFLAGS += -Wunused-macros
 CXXFLAGS += -pthread
+CXXFLAGS += -fsanitize=address
+LDFLAGS += -fsanitize=address
 CXXFLAGS += -I../include
 CXXFLAGS += -I../libpmemobj
 CXXFLAGS += -I../common

@@ -13,6 +13,10 @@ TOP := $(dir $(lastword $(MAKEFILE_LIST)))../..
 
 include $(TOP)/src/common.inc
 
+CFLAGS += -fsanitize=address
+CXXFLAGS += -fsanitize=address
+LDFLAGS += -fsanitize=address
+
 INCS += $(OS_INCS)
 LDFLAGS += $(OS_LIBS)
 LIBS_DIR=$(TOP)/src
