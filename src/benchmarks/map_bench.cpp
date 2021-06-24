@@ -22,8 +22,8 @@
 #include "map_rtree.h"
 
 /* Values less than 3 is not suitable for current rtree implementation */
-#define FACTOR 3
-#define ALLOC_OVERHEAD 64
+#define FACTOR 4
+#define ALLOC_OVERHEAD 256
 
 TOID_DECLARE_ROOT(struct root);
 
