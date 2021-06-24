@@ -23,6 +23,9 @@ CFLAGS += -fsanitize=$(SANITIZE)
 CXXFLAGS += -fsanitize=$(SANITIZE)
 LDFLAGS += -fsanitize=$(SANITIZE)
 endif
+ifeq ($(DEBUG),)
+CFLAGS += -O2
+endif
 INCS = -I$(INCDIR) -I. -I$(TOP_SRC)/examples $(OS_INCS)
 LIBS += $(OS_LIBS) $(LIBUUID)
 
