@@ -323,7 +323,7 @@ static PMEMoid pmemobj_tx_realloc_(PMEMoid oid, size_t size, uint64_t type_num, 
 		if (pmemobj_tx_add_range(shadow_oid, oid.off/8, old_usable_size/8)) {
 			return OID_NULL;
 		}
-		//pmdk_asan_mark_mem(pmemobj_direct(oid), old_usable_size, pmdk_asan_FREED);
+		pmdk_asan_mark_mem(pmemobj_direct(oid), old_usable_size, pmdk_asan_FREED);
 	}
 	oid = alloc_additional_work(res, size); // kartal TODO: An optimization might be to avoid modifying the shadow memory if the new size == old size
 	if (should_zero && size > old_user_size)
