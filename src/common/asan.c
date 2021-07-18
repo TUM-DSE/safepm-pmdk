@@ -45,19 +45,20 @@ void pmdk_asan_memcpy(void* dest_, const void* src_, size_t len) {
 
 // len in bytes
 __attribute__((no_sanitize("address")))
-void pmdk_asan_mark_mem(void* start, size_t len, uint8_t tag) {
+void pmdk_asan_mark_mem(void* shadow_in_pool_, uint64_t pool_offset, size_t len, uint8_t tag) {
+	uint8_t* shadow_in_pool = (uint8_t*)shadow_in_pool_;
 	assert((int8_t)tag <= 0);
-	if ((uint64_t)start%8) {
-		uint64_t misalignment = (uint64_t)start%8;
-		/*uint8_t* shadow_pos = get_shadow_mem_location(start);
+	if (pool_offset%8) {
+		uint64_t misalignment = pool_offset%8;
+		/*uint8_t* shadow_pos = shadow_in_pool+pool_offset/8;
 		*shadow_pos = tag;*/ // We can only enter this branch during the marking of the right red-zone for non-multiple-of-8 sized objects. In this case, we must no modify this bit of the shadow memory.
-		start = (void*)((uint64_t)start+8-misalignment);
+		pool_offset = pool_offset+8-misalignment;
 		len -= 8-misalignment;
 	}
-	pmdk_asan_memset(pmdk_asan_get_shadow_mem_location(start), tag, len/8);
+	pmdk_asan_memset(shadow_in_pool+pool_offset/8, tag, len/8);
 	if (len%8) {
 		int prot = len%8;
-		uint8_t* shadow_pos = pmdk_asan_get_shadow_mem_location((uint8_t*)start+len);
+		uint8_t* shadow_pos = shadow_in_pool+(pool_offset+len)/8;
 		if (tag)
 			*shadow_pos = tag; // We don't really need to check the previous value of *shadow_start here, because pmemobj would not distribute the same 8-byte chunk to multiple objects.
 		else

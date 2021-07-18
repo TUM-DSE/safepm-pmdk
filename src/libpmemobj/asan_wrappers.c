@@ -31,17 +31,17 @@ static PMEMoid alloc_additional_work(PMEMoid orig, size_t size) {
 	if (OID_IS_NULL(orig)) {
 		return orig;
 	}
-	uint8_t* direct = (uint8_t*)pmemobj_direct(orig);
 	PMEMoid shadow = pmemobj_asan_oid2psm(orig);
+	void* shadow_in_pool = pmemobj_direct(shadow);
 
 	int res = pmemobj_tx_add_range(shadow, orig.off/8, (2*pmdk_asan_RED_ZONE_SIZE+size+7)/8);
 	if (res) {
 		return OID_NULL;
 	}
 	
-	pmdk_asan_mark_mem(direct, pmdk_asan_RED_ZONE_SIZE, pmdk_asan_LEFT_REDZONE);
-	pmdk_asan_mark_mem(direct+pmdk_asan_RED_ZONE_SIZE, size, pmdk_asan_ADDRESSABLE); // In case it was poisoned by an earlier free
-	pmdk_asan_mark_mem(direct+pmdk_asan_RED_ZONE_SIZE+size, pmdk_asan_RED_ZONE_SIZE, pmdk_asan_RIGHT_REDZONE);
+	pmdk_asan_mark_mem(shadow_in_pool, orig.off, pmdk_asan_RED_ZONE_SIZE, pmdk_asan_LEFT_REDZONE);
+	pmdk_asan_mark_mem(shadow_in_pool, orig.off+pmdk_asan_RED_ZONE_SIZE, size, pmdk_asan_ADDRESSABLE);
+	pmdk_asan_mark_mem(shadow_in_pool, orig.off+pmdk_asan_RED_ZONE_SIZE+size, pmdk_asan_RED_ZONE_SIZE, pmdk_asan_RIGHT_REDZONE);
 
 	orig.off += pmdk_asan_RED_ZONE_SIZE;
 	return orig;
@@ -145,7 +145,7 @@ PMEMoid pmemobj_root(PMEMobjpool *pool, size_t size) {
 	if (OID_IS_NULL(rootp->real_root)) {
 		PMEMoid real_root;
 		TX_BEGIN(pool) {
-			real_root = pmemobj_tx_alloc(size, TOID_TYPE_NUM(struct pmemobj_asan_end)); // Do an asan-aware allocation here
+			real_root = pmemobj_tx_zalloc(size, TOID_TYPE_NUM(struct pmemobj_asan_end)); // Do an asan-aware allocation here
 
 			pmemobj_tx_add_range_direct(&rootp->real_root, 24);
 
@@ -192,9 +192,10 @@ int pmemobj_tx_free(PMEMoid oid) {
 
 	uint64_t size = pmemobj_alloc_usable_size_no_asan(redzone_start);
 	PMEMoid shadow_oid = pmemobj_asan_oid2psm(oid);
+	void* shadow_in_pool = pmemobj_direct(shadow_oid);
 	if ((res = pmemobj_tx_add_range(shadow_oid, redzone_start.off/8, size/8)))
 		return res;
-	pmdk_asan_mark_mem(pmemobj_direct(redzone_start), size, pmdk_asan_FREED);
+	pmdk_asan_mark_mem(shadow_in_pool, redzone_start.off, size, pmdk_asan_FREED);
 
 	return 0;
 }
@@ -320,10 +321,11 @@ static PMEMoid pmemobj_tx_realloc_(PMEMoid oid, size_t size, uint64_t type_num, 
 		return res;
 	if (res.off != oid.off) { // The object moved, mark the previous region FREED
 		PMEMoid shadow_oid = pmemobj_asan_oid2psm(oid);
+		void* shadow_in_pool = pmemobj_direct(shadow_oid);
 		if (pmemobj_tx_add_range(shadow_oid, oid.off/8, old_usable_size/8)) {
 			return OID_NULL;
 		}
-		pmdk_asan_mark_mem(pmemobj_direct(oid), old_usable_size, pmdk_asan_FREED);
+		pmdk_asan_mark_mem(shadow_in_pool, oid.off, old_usable_size, pmdk_asan_FREED);
 	}
 	oid = alloc_additional_work(res, size); // kartal TODO: An optimization might be to avoid modifying the shadow memory if the new size == old size
 	if (should_zero && size > old_user_size)

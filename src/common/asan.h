@@ -18,7 +18,7 @@ uint8_t* pmdk_asan_get_shadow_mem_location(void* _p);
 void pmdk_asan_memset(void* start, uint8_t byt, size_t len);
 void pmdk_asan_memcpy(void* dest, const void* src, size_t len);
 
-void pmdk_asan_mark_mem(void* start, size_t len, uint8_t tag);
+void pmdk_asan_mark_mem(void* shadow_in_pool_, uint64_t pool_offset, size_t len, uint8_t tag);
 
 //int pmemobj_asan_tag_mem_tx(void* ptr, size_t size, uint8_t tag);
 
