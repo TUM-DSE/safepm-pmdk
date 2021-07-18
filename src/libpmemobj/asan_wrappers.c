@@ -187,8 +187,6 @@ int pmemobj_tx_free(PMEMoid oid) {
 	assert(*(shadow_object_start-1) == pmdk_asan_LEFT_REDZONE && "Invalid free");
 	PMEMoid redzone_start={.pool_uuid_lo = oid.pool_uuid_lo, .off = oid.off - pmdk_asan_RED_ZONE_SIZE};
 	int res;
-	if ((res = pmemobj_tx_free_no_asan(redzone_start))) // TODO: Quarantine the region to provide additional temporal safety
-		return res;
 
 	uint64_t size = pmemobj_alloc_usable_size_no_asan(redzone_start);
 	PMEMoid shadow_oid = pmemobj_asan_oid2psm(oid);
@@ -196,6 +194,9 @@ int pmemobj_tx_free(PMEMoid oid) {
 	if ((res = pmemobj_tx_add_range(shadow_oid, redzone_start.off/8, size/8)))
 		return res;
 	pmdk_asan_mark_mem(shadow_in_pool, redzone_start.off, size, pmdk_asan_FREED);
+
+	if ((res = pmemobj_tx_free_no_asan(redzone_start))) // TODO: Quarantine the region to provide additional temporal safety
+		return res;
 
 	return 0;
 }
