@@ -9,6 +9,7 @@
 #include <wchar.h>
 #include <stdbool.h>
 
+#include "libpmemobj/base.h"
 #include "valgrind_internal.h"
 #include "libpmem.h"
 #include "memblock.h"
@@ -27,6 +28,7 @@
 #include "sync.h"
 #include "tx.h"
 #include "sys_util.h"
+#include "asan_wrappers.h"
 
 /*
  * The variable from which the config is directly loaded. The string
@@ -1947,8 +1949,21 @@ pmemobj_close_no_asan(PMEMobjpool *pop)
 	PMEMOBJ_API_START();
 
 #if PMASAN_TRACK_SPACE_USAGE
+	printf("Pool size: %lu\n", pop->set->poolsize);
+	//size_t psm_size = pop->set->poolsize/8+4096;
+	size_t psm_size=0;
+	for (PMEMoid psm_oid = pmemobj_first_no_asan(pop); psm_oid.off != 0; psm_oid = pmemobj_next_no_asan(psm_oid)) {
+		if (pmemobj_type_num_no_asan(psm_oid) == TOID_TYPE_NUM(struct pmemobj_asan_shadowmem)) {
+			psm_size = pmemobj_alloc_usable_size_no_asan(psm_oid);
+			break;
+		}
+	}
+
+	printf("Persistent shadow memory size: %lu\n", psm_size);
 	printf("Current estimated pool usage: %lu\n", pop->cur_user_size);
 	printf("Peak    estimated pool usage: %lu\n", pop->peak_user_size);
+	printf("Current estimated pool usage (wo/ the PSM): %lu\n", pop->cur_user_size-psm_size);
+	printf("Peak    estimated pool usage (wo/ the PSM): %lu\n", pop->peak_user_size-psm_size);
 #endif
 
 	_pobj_cache_invalidate++;
@@ -2233,6 +2248,14 @@ pmemobj_alloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	PMEMOBJ_API_START();
 	int ret = obj_alloc_construct(pop, oidp, size, type_num,
 			0, constructor, arg);
+
+#if PMASAN_TRACK_SPACE_USAGE
+	if (ret == 0) {
+		pop->cur_user_size += pmemobj_alloc_usable_size_no_asan(*oidp);
+		if (pop->cur_user_size > pop->peak_user_size)
+			pop->peak_user_size = pop->cur_user_size;
+	}
+#endif
 
 	PMEMOBJ_API_END();
 	return ret;
@@ -2919,7 +2942,18 @@ pmemobj_root_no_asan(PMEMobjpool *pop, size_t size)
 	LOG(3, "pop %p size %zu", pop, size);
 
 	PMEMOBJ_API_START();
+#if PMASAN_TRACK_SPACE_USAGE
+	size_t usable_size = pmemobj_root_size_no_asan(pop);
+#endif
 	PMEMoid oid = pmemobj_root_construct(pop, size, NULL, NULL);
+#if PMASAN_TRACK_SPACE_USAGE
+	if (oid.off) {
+		pop->cur_user_size -= usable_size;
+		pop->cur_user_size += pmemobj_root_size_no_asan(pop);
+		if (pop->cur_user_size > pop->peak_user_size)
+			pop->peak_user_size = pop->cur_user_size;
+	}
+#endif
 	PMEMOBJ_API_END();
 	return oid;
 }

@@ -1566,6 +1566,14 @@ pmemobj_tx_alloc_no_asan(size_t size, uint64_t type_num)
 	oid = tx_alloc_common(tx, size, (type_num_t)type_num,
 			constructor_tx_alloc, ALLOC_ARGS(flags));
 
+#if PMASAN_TRACK_SPACE_USAGE
+	if (oid.off) {
+		tx->pop->cur_user_size += pmemobj_alloc_usable_size_no_asan(oid);
+		if (tx->pop->cur_user_size > tx->pop->peak_user_size)
+			tx->pop->peak_user_size = tx->pop->cur_user_size;
+	}
+#endif
+
 	PMEMOBJ_API_END();
 	return oid;
 }
@@ -1653,8 +1661,19 @@ pmemobj_tx_realloc_no_asan(PMEMoid oid, size_t size, uint64_t type_num)
 	ASSERT_TX_STAGE_WORK(tx);
 
 	PMEMOBJ_API_START();
+#if PMASAN_TRACK_SPACE_USAGE
+	size_t usable_size = pmemobj_alloc_usable_size_no_asan(oid);
+#endif
 	PMEMoid ret = tx_realloc_common(tx, oid, size, type_num,
 			constructor_tx_alloc, constructor_tx_alloc, 0);
+#if PMASAN_TRACK_SPACE_USAGE
+	if (ret.off && ret.off != oid.off) {
+		tx->pop->cur_user_size -= usable_size;
+		tx->pop->cur_user_size += pmemobj_alloc_usable_size_no_asan(ret);
+		if (tx->pop->cur_user_size > tx->pop->peak_user_size)
+			tx->pop->peak_user_size = tx->pop->cur_user_size;
+	}
+#endif
 	PMEMOBJ_API_END();
 	return ret;
 }
@@ -1877,7 +1896,16 @@ pmemobj_tx_xfree(PMEMoid oid, uint64_t flags)
 int
 pmemobj_tx_free_no_asan(PMEMoid oid)
 {
-	return pmemobj_tx_xfree(oid, 0);
+#if PMASAN_TRACK_SPACE_USAGE
+	size_t usable_size = pmemobj_alloc_usable_size_no_asan(oid);
+#endif
+	int ret = pmemobj_tx_xfree(oid, 0);
+#if PMASAN_TRACK_SPACE_USAGE
+	if (ret == 0) {
+    	get_tx()->pop->cur_user_size -= usable_size;
+	}
+#endif
+	return ret;
 }
 
 /*
