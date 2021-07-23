@@ -95,7 +95,11 @@ typedef uint64_t type_num_t;
 #define CONVERSION_FLAG_OLD_SET_CACHE ((1ULL) << 0)
 
 /* PMEM_OBJ_POOL_HEAD_SIZE Without the unused and unused2 arrays */
+#if PMASAN_TRACK_SPACE_USAGE
+#define PMEM_OBJ_POOL_HEAD_SIZE (2196+16)
+#else
 #define PMEM_OBJ_POOL_HEAD_SIZE 2196
+#endif
 #define PMEM_OBJ_POOL_UNUSED2_SIZE (PMEM_PAGESIZE \
 					- OBJ_DSC_P_UNUSED\
 					- PMEM_OBJ_POOL_HEAD_SIZE)
@@ -188,6 +192,9 @@ struct pmemobjpool {
 		int verify;
 	} ulog_user_buffers;
 
+#if PMASAN_TRACK_SPACE_USAGE
+	size_t cur_user_size, peak_user_size;
+#endif
 	void *user_data;
 
 	/* padding to align size of this structure to page boundary */

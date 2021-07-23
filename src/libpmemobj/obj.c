@@ -1251,6 +1251,11 @@ obj_runtime_init(PMEMobjpool *pop, int rdonly, int boot, unsigned nlanes)
 	 */
 	RANGE_NONE(pop->addr, sizeof(struct pool_hdr), pop->is_dev_dax);
 
+#if PMASAN_TRACK_SPACE_USAGE
+	pop->cur_user_size = 0;
+	pop->peak_user_size = 0;
+#endif
+
 	return 0;
 
 err_user_buffers_map:
@@ -1940,6 +1945,11 @@ pmemobj_close_no_asan(PMEMobjpool *pop)
 {
 	LOG(3, "pop %p", pop);
 	PMEMOBJ_API_START();
+
+#if PMASAN_TRACK_SPACE_USAGE
+	printf("Current estimated pool usage: %lu\n", pop->cur_user_size);
+	printf("Peak    estimated pool usage: %lu\n", pop->peak_user_size);
+#endif
 
 	_pobj_cache_invalidate++;
 
