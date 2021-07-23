@@ -9,6 +9,7 @@
 #include <wchar.h>
 #include <stdbool.h>
 
+#include "libpmemobj/base.h"
 #include "valgrind_internal.h"
 #include "libpmem.h"
 #include "memblock.h"
@@ -2234,6 +2235,14 @@ pmemobj_alloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	int ret = obj_alloc_construct(pop, oidp, size, type_num,
 			0, constructor, arg);
 
+#if PMASAN_TRACK_SPACE_USAGE
+	if (ret == 0) {
+		pop->cur_user_size += pmemobj_alloc_usable_size(*oidp);
+		if (pop->cur_user_size > pop->peak_user_size)
+			pop->peak_user_size = pop->cur_user_size;
+	}
+#endif
+
 	PMEMOBJ_API_END();
 	return ret;
 }
@@ -2309,6 +2318,14 @@ pmemobj_zalloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	PMEMOBJ_API_START();
 	int ret = obj_alloc_construct(pop, oidp, size, type_num, POBJ_FLAG_ZERO,
 		NULL, NULL);
+
+#if PMASAN_TRACK_SPACE_USAGE
+	if (ret == 0) {
+		pop->cur_user_size += pmemobj_alloc_usable_size(*oidp);
+		if (pop->cur_user_size > pop->peak_user_size)
+			pop->peak_user_size = pop->cur_user_size;
+	}
+#endif
 
 	PMEMOBJ_API_END();
 	return ret;
@@ -2453,7 +2470,21 @@ pmemobj_realloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	_POBJ_DEBUG_NOTICE_IN_TX();
 	ASSERT(OBJ_OID_IS_VALID(pop, *oidp));
 
+#if PMASAN_TRACK_SPACE_USAGE
+	size_t usable_size = pmemobj_alloc_usable_size(*oidp);
+	uint64_t old_off = oidp->off;
+#endif
+
 	int ret = obj_realloc_common(pop, oidp, size, (type_num_t)type_num, 0);
+
+#if PMASAN_TRACK_SPACE_USAGE
+	if (ret == 0 && old_off != oidp->off) {
+		pop->cur_user_size -= usable_size;
+		pop->cur_user_size += pmemobj_alloc_usable_size(*oidp);
+		if (pop->cur_user_size > pop->peak_user_size)
+			pop->peak_user_size = pop->cur_user_size;
+	}
+#endif
 
 	PMEMOBJ_API_END();
 	return ret;
@@ -2477,7 +2508,21 @@ pmemobj_zrealloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	_POBJ_DEBUG_NOTICE_IN_TX();
 	ASSERT(OBJ_OID_IS_VALID(pop, *oidp));
 
+#if PMASAN_TRACK_SPACE_USAGE
+	size_t usable_size = pmemobj_alloc_usable_size(*oidp);
+	uint64_t old_off = oidp->off;
+#endif
+
 	int ret = obj_realloc_common(pop, oidp, size, (type_num_t)type_num, 1);
+
+#if PMASAN_TRACK_SPACE_USAGE
+	if (ret == 0 && oidp->off != old_off) {
+		pop->cur_user_size -= usable_size;
+		pop->cur_user_size += pmemobj_alloc_usable_size(*oidp);
+		if (pop->cur_user_size > pop->peak_user_size)
+			pop->peak_user_size = pop->cur_user_size;
+	}
+#endif
 
 	PMEMOBJ_API_END();
 	return ret;
@@ -2616,7 +2661,16 @@ pmemobj_free(PMEMoid *oidp)
 	ASSERTne(pop, NULL);
 	ASSERT(OBJ_OID_IS_VALID(pop, *oidp));
 
+#if PMASAN_TRACK_SPACE_USAGE
+	size_t usable_size = pmemobj_alloc_usable_size(*oidp);
+#endif
+
 	obj_free(pop, oidp);
+
+#if PMASAN_TRACK_SPACE_USAGE
+	pop->cur_user_size -= usable_size;
+#endif
+
 	PMEMOBJ_API_END();
 }
 
@@ -2919,7 +2973,18 @@ pmemobj_root(PMEMobjpool *pop, size_t size)
 	LOG(3, "pop %p size %zu", pop, size);
 
 	PMEMOBJ_API_START();
+#if PMASAN_TRACK_SPACE_USAGE
+	size_t usable_size = pmemobj_root_size(pop);
+#endif
 	PMEMoid oid = pmemobj_root_construct(pop, size, NULL, NULL);
+#if PMASAN_TRACK_SPACE_USAGE
+	if (oid.off) {
+		pop->cur_user_size -= usable_size;
+		pop->cur_user_size += pmemobj_root_size(pop);
+		if (pop->cur_user_size > pop->peak_user_size)
+			pop->peak_user_size = pop->cur_user_size;
+	}
+#endif
 	PMEMOBJ_API_END();
 	return oid;
 }
