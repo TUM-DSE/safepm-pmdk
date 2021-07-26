@@ -53,6 +53,10 @@ void pmdk_asan_mark_mem(void* shadow_in_pool_, uint64_t pool_offset, size_t len,
 		/*uint8_t* shadow_pos = shadow_in_pool+pool_offset/8;
 		*shadow_pos = tag;*/ // We can only enter this branch during the marking of the right red-zone for non-multiple-of-8 sized objects. In this case, we must no modify this bit of the shadow memory.
 		pool_offset = pool_offset+8-misalignment;
+#if pmdk_asan_RED_ZONE_SIZE < 8 // Because this branch may only be taken during the marking of the right red-zone, len == pmdk_asan_RED_ZONE_SIZE. Unless the pre-processor condition holds, it is not possible for the condition below to hold, so we avoid a run-time check altogether.
+		if (len <= 8-misalignment)
+			return ;
+#endif
 		len -= 8-misalignment;
 	}
 	pmdk_asan_memset(shadow_in_pool+pool_offset/8, tag, len/8);
