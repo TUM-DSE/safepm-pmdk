@@ -11,7 +11,7 @@
 #define pmdk_asan_INTERNAL 0xFE
 #define pmdk_asan_METADATA pmdk_asan_INTERNAL // kartal TODO: Is this correct? What values does ASan use to represent metadata?
 
-#define pmdk_asan_RED_ZONE_SIZE 128
+#define pmdk_asan_RED_ZONE_SIZE 16
 
 uint8_t* pmdk_asan_get_shadow_mem_location(void* _p);
 
