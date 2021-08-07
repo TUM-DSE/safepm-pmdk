@@ -86,8 +86,7 @@ PMEMobjpool *pmemobj_open(const char *path, const char *given_layout) {
 	return pool;
 }
 PMEMobjpool *pmemobj_create(const char *path, const char *real_layout, size_t poolsize, mode_t mode) {
-	if (poolsize%(4096*8)) // Poolsize needs to be 8*4kb-padded because the shadow memory needs to be 4kb-padded (for marking the red-zone)
-		poolsize += (4096*8) - poolsize%(4096*8);
+	poolsize -= poolsize%(4096*8); // Poolsize needs to be 8*4kb-padded because the shadow memory needs to be 4kb-padded (for marking the red-zone)
 	PMEMobjpool* pool;
 	if (1) {
 		char* layout = add_layout_prefix(real_layout);
