@@ -328,6 +328,7 @@ static PMEMoid pmemobj_tx_realloc_(PMEMoid oid, size_t size, uint64_t type_num, 
 		}
 		pmdk_asan_mark_mem(shadow_in_pool, oid.off, old_usable_size, pmdk_asan_FREED);
 	}
+	// kartal TODO: If the object shrank in-place, mark the now-out-of-bounds region of memory unaccessible
 	oid = alloc_additional_work(res, size); // kartal TODO: An optimization might be to avoid modifying the shadow memory if the new size == old size
 	if (should_zero && size > old_user_size)
 		TX_MEMSET((uint8_t*)pmemobj_direct(oid)+old_user_size, 0, size - old_user_size);
