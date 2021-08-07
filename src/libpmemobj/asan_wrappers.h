@@ -15,7 +15,6 @@ struct pmemobj_asan_shadowmem {}; // A dummy type, whose type number is used for
 
 struct pmemobj_asan_root {
 	PMEMoid shadow_mem;
-	uint64_t pool_size;
 	PMEMoid real_root;
 	uint64_t real_root_size;
 };

@@ -57,9 +57,7 @@ static void overmap_pool(const char* path, PMEMobjpool* pool) {
 }
 
 static void undo_overmap_pool(PMEMobjpool* pool) {
-	PMEMoid roott = pmemobj_root_no_asan(pool, sizeof(struct pmemobj_asan_root));
-	const struct pmemobj_asan_root *rootp = pmemobj_direct(roott);
-	uint64_t pool_end = (uint64_t)pool + rootp->pool_size;
+	uint64_t pool_end = (uint64_t)pool + pool->set->poolsize;
 	pmemobj_asan_undo_overmap((void*)pool, (void *)pool_end);
 }
 
@@ -102,7 +100,6 @@ PMEMobjpool *pmemobj_create(const char *path, const char *real_layout, size_t po
 	assert(! OID_IS_NULL(roott));
 
 	struct pmemobj_asan_root* rootp = pmemobj_direct(roott);
-	rootp->pool_size = poolsize;
 	rootp->real_root_size = 0;
 	size_t shadow_size = poolsize/8; // The shadow memory encompasses information about the whole pool: including the pmdk header and the shadow memory itself
 	// Allocate and zero-initialize the persistent shadow memory
