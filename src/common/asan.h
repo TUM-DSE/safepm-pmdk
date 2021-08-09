@@ -6,7 +6,7 @@
 
 #define pmdk_asan_ADDRESSABLE 0
 #define pmdk_asan_LEFT_REDZONE 0xFA
-#define pmdk_asan_RIGHT_REDZONE 0xFB
+#define pmdk_asan_RIGHT_REDZONE 0xFA
 #define pmdk_asan_FREED 0xFD
 #define pmdk_asan_INTERNAL 0xFE
 #define pmdk_asan_METADATA pmdk_asan_INTERNAL // kartal TODO: Is this correct? What values does ASan use to represent metadata?
