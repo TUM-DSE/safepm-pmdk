@@ -2265,7 +2265,7 @@ pmemobj_alloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
  * pmemobj_xalloc -- allocates with flags
  */
 int
-pmemobj_xalloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+pmemobj_xalloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	uint64_t type_num, uint64_t flags,
 	pmemobj_constr constructor, void *arg)
 {

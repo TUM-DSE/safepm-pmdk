@@ -27,14 +27,14 @@ static PMEMoid pmemobj_asan_oid2psm(PMEMoid oid) {
 	return pmemobj_asan_pool2psm(pool);
 }*/
 
-static PMEMoid alloc_additional_work(PMEMoid orig, size_t size) {
+static PMEMoid alloc_additional_work(PMEMoid orig, size_t size, uint64_t flags) {
 	if (OID_IS_NULL(orig)) {
 		return orig;
 	}
 	PMEMoid shadow = pmemobj_asan_oid2psm(orig);
 	void* shadow_in_pool = pmemobj_direct(shadow);
 
-	int res = pmemobj_tx_add_range(shadow, orig.off/8, (2*pmdk_asan_RED_ZONE_SIZE+size+7)/8);
+	int res = pmemobj_tx_xadd_range(shadow, orig.off/8, (2*pmdk_asan_RED_ZONE_SIZE+size+7)/8, flags&POBJ_FLAG_TX_NO_ABORT);
 	if (res) {
 		return OID_NULL;
 	}
@@ -172,12 +172,14 @@ size_t pmemobj_root_size(PMEMobjpool *pool) {
 }
 
 PMEMoid pmemobj_tx_alloc(size_t size, uint64_t type_num) {
-	//TODO: A custom allocator could save us one redzone per object.
-	PMEMoid orig = pmemobj_tx_alloc_no_asan(size+2*pmdk_asan_RED_ZONE_SIZE, type_num+TOID_TYPE_NUM(struct pmemobj_asan_end));
-	return alloc_additional_work(orig, size);
+	return pmemobj_tx_xalloc(size, type_num, 0);
 }
 
 int pmemobj_tx_free(PMEMoid oid) {
+	return pmemobj_tx_xfree(oid, 0);
+}
+int
+pmemobj_tx_xfree(PMEMoid oid, uint64_t flags) {
 	uint8_t* shadow_object_start = pmdk_asan_get_shadow_mem_location(pmemobj_direct(oid));
 	assert((int8_t)(*shadow_object_start) >= 0 && "Invalid free");
 	assert(*(shadow_object_start-1) == pmdk_asan_LEFT_REDZONE && "Invalid free");
@@ -187,11 +189,11 @@ int pmemobj_tx_free(PMEMoid oid) {
 	uint64_t size = pmemobj_alloc_usable_size_no_asan(redzone_start);
 	PMEMoid shadow_oid = pmemobj_asan_oid2psm(oid);
 	void* shadow_in_pool = pmemobj_direct(shadow_oid);
-	if ((res = pmemobj_tx_add_range(shadow_oid, redzone_start.off/8, size/8)))
+	if ((res = pmemobj_tx_xadd_range(shadow_oid, redzone_start.off/8, size/8, flags & POBJ_XFREE_NO_ABORT)))
 		return res;
 	pmdk_asan_mark_mem(shadow_in_pool, redzone_start.off, size, pmdk_asan_FREED);
 
-	if ((res = pmemobj_tx_free_no_asan(redzone_start))) // TODO: Quarantine the region to provide additional temporal safety
+	if ((res = pmemobj_tx_xfree_no_asan(redzone_start, flags))) // TODO: Quarantine the region to provide additional temporal safety
 		return res;
 
 	return 0;
@@ -231,32 +233,8 @@ pmemobj_type_num(PMEMoid oid) {
 	return pmemobj_type_num_no_asan(oid) - TOID_TYPE_NUM(struct pmemobj_asan_end);
 }
 int pmemobj_alloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
-    uint64_t type_num, pmemobj_constr constructor, void *arg) {
-	if (size == 0) {
-		ERR("allocation with size 0");
-		errno = EINVAL;
-		return -1;
-	}
-
-	volatile int cancelled = 0;
-	TX_BEGIN(pop) {
-		PMEMoid oid = pmemobj_tx_alloc(size, type_num); // Note that this is an asan-aware allocation
-		if (oidp != NULL) {
-			if ((uint8_t*)oidp >= (uint8_t*)pop + pop->heap_offset &&
-				(uint8_t*)oidp < (uint8_t*)pop + pop->heap_offset + pop->heap_size) {
-				pmemobj_tx_add_range_direct(oidp, sizeof(PMEMoid));
-			}
-			*oidp = oid;
-		}
-		if (constructor != NULL)
-			if (constructor(pop, pmemobj_direct(oid), arg) != 0)
-				pmemobj_tx_abort(ECANCELED);
-	} TX_ONABORT {
-		cancelled = 1;
-	} TX_END
-	if (cancelled)
-		return -1;
-	return 0;
+	uint64_t type_num, pmemobj_constr constructor, void *arg) {
+    return pmemobj_xalloc(pop, oidp, size, type_num, 0, constructor, arg);
 }
 static int zalloc_zeroer(PMEMobjpool *pop, void *ptr, void *arg) {
 	TX_MEMSET(ptr, 0, (size_t)arg);
@@ -325,7 +303,7 @@ static PMEMoid pmemobj_tx_realloc_(PMEMoid oid, size_t size, uint64_t type_num, 
 		pmdk_asan_mark_mem(shadow_in_pool, oid.off, old_usable_size, pmdk_asan_FREED);
 	}
 	// kartal TODO: If the object shrank in-place, mark the now-out-of-bounds region of memory unaccessible
-	oid = alloc_additional_work(res, size); // kartal TODO: An optimization might be to avoid modifying the shadow memory if the new size == old size
+	oid = alloc_additional_work(res, size, 0); // kartal TODO: An optimization might be to avoid modifying the shadow memory if the new size == old size
 	if (should_zero && size > old_user_size)
 		TX_MEMSET((uint8_t*)pmemobj_direct(oid)+old_user_size, 0, size - old_user_size);
 	return oid;
@@ -373,8 +351,43 @@ int pmemobj_zrealloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type
 	return ret;
 }
 
-//PMEMoid pmemobj_tx_xalloc(size_t size, uint64_t type_num, uint64_t flags);
-//int pmemobj_tx_xfree(PMEMoid oid, uint64_t flags);
+PMEMoid
+pmemobj_tx_xalloc(size_t size, uint64_t type_num, uint64_t flags) {
+	PMEMoid orig = pmemobj_tx_xalloc_no_asan(size+2*pmdk_asan_RED_ZONE_SIZE, type_num+TOID_TYPE_NUM(struct pmemobj_asan_end), flags);
+	return alloc_additional_work(orig, size, flags);
+}
+
+int
+pmemobj_xalloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+	uint64_t type_num, uint64_t flags,
+	pmemobj_constr constructor, void *arg) {
+	if (size == 0) {
+		ERR("allocation with size 0");
+		errno = EINVAL;
+		return -1;
+	}
+
+	volatile int cancelled = 0;
+	TX_BEGIN(pop) {
+		PMEMoid oid = pmemobj_tx_xalloc(size, type_num, flags); // Note that this is an asan-aware allocation
+		if (oidp != NULL) {
+			if ((uint8_t*)oidp >= (uint8_t*)pop + pop->heap_offset &&
+				(uint8_t*)oidp < (uint8_t*)pop + pop->heap_offset + pop->heap_size) {
+				pmemobj_tx_add_range_direct(oidp, sizeof(PMEMoid));
+			}
+			*oidp = oid;
+		}
+		if (constructor != NULL)
+			if (constructor(pop, pmemobj_direct(oid), arg) != 0)
+				pmemobj_tx_abort(ECANCELED);
+	} TX_ONABORT {
+		cancelled = 1;
+	} TX_END
+	if (cancelled)
+		return -1;
+	return 0;
+}
+
 //PMEMoid spmemobj_tx_strdup(const char *s, uint64_t type_num);
 //PMEMoid pmemobj_tx_xstrdup(const char *s, uint64_t type_num, uint64_t flags);
 //PMEMoid pmemobj_tx_wcsdup(const wchar_t *s, uint64_t type_num);

@@ -1613,7 +1613,7 @@ pmemobj_tx_zalloc(size_t size, uint64_t type_num)
  * pmemobj_tx_xalloc -- allocates a new object
  */
 PMEMoid
-pmemobj_tx_xalloc(size_t size, uint64_t type_num, uint64_t flags)
+pmemobj_tx_xalloc_no_asan(size_t size, uint64_t type_num, uint64_t flags)
 {
 	LOG(3, NULL);
 	struct tx *tx = get_tx();
@@ -1819,7 +1819,7 @@ pmemobj_tx_wcsdup(const wchar_t *s, uint64_t type_num)
  * pmemobj_tx_xfree -- frees an existing object, with no_abort option
  */
 int
-pmemobj_tx_xfree(PMEMoid oid, uint64_t flags)
+pmemobj_tx_xfree_no_asan(PMEMoid oid, uint64_t flags)
 {
 	LOG(3, NULL);
 
@@ -1899,7 +1899,7 @@ pmemobj_tx_free_no_asan(PMEMoid oid)
 #if PMASAN_TRACK_SPACE_USAGE
 	size_t usable_size = pmemobj_alloc_usable_size_no_asan(oid);
 #endif
-	int ret = pmemobj_tx_xfree(oid, 0);
+	int ret = pmemobj_tx_xfree_no_asan(oid, 0);
 #if PMASAN_TRACK_SPACE_USAGE
 	if (ret == 0) {
     	get_tx()->pop->cur_user_size -= usable_size;
