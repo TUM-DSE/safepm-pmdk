@@ -263,8 +263,8 @@ alloc_tx(struct obj_tx_bench *obj_bench, struct worker_info *worker, size_t idx)
 {
 	size_t type_num = obj_bench->fn_type_num(obj_bench, worker->index, idx);
 	auto *obj_worker = (struct obj_tx_worker *)worker->priv;
-	obj_worker->oids[idx].oid = pmemobj_tx_alloc(
-		obj_bench->sizes[idx], type_num/*, POBJ_XALLOC_NO_FLUSH*/);
+	obj_worker->oids[idx].oid = pmemobj_tx_xalloc(
+		obj_bench->sizes[idx], type_num, POBJ_XALLOC_NO_FLUSH);
 	if (OID_IS_NULL(obj_worker->oids[idx].oid)) {
 		perror("pmemobj_tx_alloc");
 		return -1;
