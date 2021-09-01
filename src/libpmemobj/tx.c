@@ -1376,7 +1376,7 @@ pmemobj_tx_add_common(struct tx *tx, struct tx_range_def *args)
  *					transaction
  */
 int
-pmemobj_tx_add_range_direct(const void *ptr, size_t size)
+pmemobj_tx_add_range_direct_no_asan(const void *ptr, size_t size)
 {
 	LOG(3, NULL);
 
@@ -1414,7 +1414,7 @@ pmemobj_tx_add_range_direct(const void *ptr, size_t size)
  *					transaction
  */
 int
-pmemobj_tx_xadd_range_direct(const void *ptr, size_t size, uint64_t flags)
+pmemobj_tx_xadd_range_direct_no_asan(const void *ptr, size_t size, uint64_t flags)
 {
 	LOG(3, NULL);
 
@@ -1459,7 +1459,7 @@ pmemobj_tx_xadd_range_direct(const void *ptr, size_t size, uint64_t flags)
  * pmemobj_tx_add_range -- adds persistent memory range into the transaction
  */
 int
-pmemobj_tx_add_range(PMEMoid oid, uint64_t hoff, size_t size)
+pmemobj_tx_add_range_no_asan(PMEMoid oid, uint64_t hoff, size_t size)
 {
 	LOG(3, NULL);
 
@@ -1497,7 +1497,7 @@ pmemobj_tx_add_range(PMEMoid oid, uint64_t hoff, size_t size)
  * pmemobj_tx_xadd_range -- adds persistent memory range into the transaction
  */
 int
-pmemobj_tx_xadd_range(PMEMoid oid, uint64_t hoff, size_t size, uint64_t flags)
+pmemobj_tx_xadd_range_no_asan(PMEMoid oid, uint64_t hoff, size_t size, uint64_t flags)
 {
 	LOG(3, NULL);
 

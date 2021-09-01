@@ -57,6 +57,14 @@ int
 pmemobj_tx_xfree_no_asan(PMEMoid oid, uint64_t flags);
 PMEMoid
 pmemobj_tx_realloc_no_asan(PMEMoid oid, size_t size, uint64_t type_num);
+int
+pmemobj_tx_add_range_no_asan(PMEMoid oid, uint64_t hoff, size_t size);
+int
+pmemobj_tx_xadd_range_no_asan(PMEMoid oid, uint64_t hoff, size_t size, uint64_t flags);
+int
+pmemobj_tx_add_range_direct_no_asan(const void *ptr, size_t size);
+int
+pmemobj_tx_xadd_range_direct_no_asan(const void *ptr, size_t size, uint64_t flags);
 
 #ifdef __cplusplus
 }

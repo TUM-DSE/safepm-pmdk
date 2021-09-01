@@ -164,6 +164,7 @@ LIBPMEM=y
 DYNAMIC_LIBS += -lpmemobj
 STATIC_DEBUG_LIBS += $(LIBSDIR_DEBUG)/libpmemobj.a
 STATIC_NONDEBUG_LIBS += $(LIBSDIR_NONDEBUG)/libpmemobj.a
+LIBS += -fsanitize=address
 endif
 
 ifeq ($(LIBPMEM),y)

@@ -1,6 +1,7 @@
 #include "asan_wrappers.h"
 #include "asan_overmap.h"
 #include "asan.h"
+#include "asan_verifier.h"
 #include "libpmemobj/base.h"
 #include "libpmemobj/tx_base.h"
 #include "obj.h"
@@ -34,7 +35,7 @@ static PMEMoid alloc_additional_work(PMEMoid orig, size_t size, uint64_t flags) 
 	PMEMoid shadow = pmemobj_asan_oid2psm(orig);
 	void* shadow_in_pool = pmemobj_direct(shadow);
 
-	int res = pmemobj_tx_xadd_range(shadow, orig.off/8, (2*pmdk_asan_RED_ZONE_SIZE+size+7)/8, flags&POBJ_FLAG_TX_NO_ABORT);
+	int res = pmemobj_tx_xadd_range_no_asan(shadow, orig.off/8, (2*pmdk_asan_RED_ZONE_SIZE+size+7)/8, flags&POBJ_FLAG_TX_NO_ABORT);
 	if (res) {
 		return OID_NULL;
 	}
@@ -143,7 +144,7 @@ PMEMoid pmemobj_root(PMEMobjpool *pool, size_t size) {
 		TX_BEGIN(pool) {
 			real_root = pmemobj_tx_zalloc(size, TOID_TYPE_NUM(struct pmemobj_asan_end)); // Do an asan-aware allocation here
 
-			pmemobj_tx_add_range_direct(&rootp->real_root, 24);
+			pmemobj_tx_add_range_direct_no_asan(&rootp->real_root, 24);
 
 			rootp->real_root = real_root;
 			rootp->real_root_size = size;
@@ -189,7 +190,7 @@ pmemobj_tx_xfree(PMEMoid oid, uint64_t flags) {
 	uint64_t size = pmemobj_alloc_usable_size_no_asan(redzone_start);
 	PMEMoid shadow_oid = pmemobj_asan_oid2psm(oid);
 	void* shadow_in_pool = pmemobj_direct(shadow_oid);
-	if ((res = pmemobj_tx_xadd_range(shadow_oid, redzone_start.off/8, size/8, flags & POBJ_XFREE_NO_ABORT)))
+	if ((res = pmemobj_tx_xadd_range_no_asan(shadow_oid, redzone_start.off/8, size/8, flags & POBJ_XFREE_NO_ABORT)))
 		return res;
 	pmdk_asan_mark_mem(shadow_in_pool, redzone_start.off, size, pmdk_asan_FREED);
 
@@ -297,7 +298,7 @@ static PMEMoid pmemobj_tx_realloc_(PMEMoid oid, size_t size, uint64_t type_num, 
 	if (res.off != oid.off) { // The object moved, mark the previous region FREED
 		PMEMoid shadow_oid = pmemobj_asan_oid2psm(oid);
 		void* shadow_in_pool = pmemobj_direct(shadow_oid);
-		if (pmemobj_tx_add_range(shadow_oid, oid.off/8, old_usable_size/8)) {
+		if (pmemobj_tx_add_range_no_asan(shadow_oid, oid.off/8, old_usable_size/8)) {
 			return OID_NULL;
 		}
 		pmdk_asan_mark_mem(shadow_in_pool, oid.off, old_usable_size, pmdk_asan_FREED);
@@ -386,6 +387,28 @@ pmemobj_xalloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	if (cancelled)
 		return -1;
 	return 0;
+}
+
+int
+pmemobj_tx_xadd_range(PMEMoid oid, uint64_t hoff, size_t size, uint64_t flags) {
+	void* ptr = (uint8_t*)pmemobj_pool_by_oid(oid)+oid.off+hoff;
+	return pmemobj_tx_xadd_range_direct(ptr, size, flags);
+}
+
+int
+pmemobj_tx_add_range(PMEMoid oid, uint64_t hoff, size_t size) {
+	return pmemobj_tx_xadd_range(oid, hoff, size, 0);
+}
+
+int
+pmemobj_tx_add_range_direct(const void *ptr, size_t size) {
+	return pmemobj_tx_xadd_range_direct(ptr, size, 0);
+}
+
+int
+pmemobj_tx_xadd_range_direct(const void *ptr, size_t size, uint64_t flags) {
+	pmemobj_asan_verify_range_addressable((uint8_t*)ptr, size);
+	return pmemobj_tx_xadd_range_direct_no_asan(ptr, size, flags);
 }
 
 //PMEMoid spmemobj_tx_strdup(const char *s, uint64_t type_num);

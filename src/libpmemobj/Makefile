@@ -34,7 +34,8 @@ SOURCE +=\
 	stats.c\
 	ulog.c\
 	asan_overmap.c\
-	asan_wrappers.c
+	asan_wrappers.c\
+	asan_verifier.c
 
 include ../Makefile.inc
 
@@ -45,3 +46,12 @@ LIBS += -pthread -lpmem $(LIBDL) $(LIBNDCTL_LIBS)
 ifeq ($(PMASAN_TRACK_SPACE_USAGE), 1)
 CFLAGS += -DPMASAN_TRACK_SPACE_USAGE=$(PMASAN_TRACK_SPACE_USAGE)
 endif
+
+# Compile asan_verifier.c with asan
+# The snippet below is copied from ../Makefile.inc, and modified to compile asan_verifier.c with ASan
+$(objdir)/asan_verifier.o: asan_verifier.c $(MAKEFILE_DEPS)
+	$(call check-cstyle, $<)
+	@mkdir -p $(objdir)/.deps
+	$(CC) -MD -c -o $@ $(CFLAGS) $(INCS) -fPIC $(call coverage-path, $<) -fsanitize=address
+	$(call check-os, $@, $<)
+	$(create-deps)
