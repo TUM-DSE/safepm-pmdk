@@ -897,8 +897,8 @@ pmemobj_gen_constructor(void)
 	obj_open.exit = pobj_exit;
 	obj_open.multithread = true;
 	obj_open.multiops = true;
-	obj_open.init_worker = pobj_init_worker;
-	obj_open.free_worker = pobj_free_worker;
+	obj_open.init_worker = pobj_create_init_worker;
+	obj_open.free_worker = pobj_create_free_worker;
 	obj_open.operation = pobj_open_op;
 	obj_open.measure_time = true;
 	obj_open.clos = pobj_open_clo;
