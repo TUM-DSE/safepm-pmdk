@@ -18,6 +18,7 @@
 
 #include "benchmark.hpp"
 #include "libpmemobj.h"
+#include "libpmempool.h"
 
 #define LAYOUT_NAME "benchmark"
 #define FACTOR 4
@@ -119,6 +120,7 @@ struct pobj_bench {
 	fn_size_t fn_size;
 	fn_num_t pool;
 	fn_num_t obj;
+	uint64_t psize;
 };
 
 /*
@@ -397,6 +399,7 @@ pobj_init(struct benchmark *bench, struct benchmark_args *args)
 		bench_priv->sets[0] = args->fname;
 		bench_priv->pop[0] = pmemobj_create(
 			bench_priv->sets[0], LAYOUT_NAME, psize, FILE_MODE);
+		
 		if (bench_priv->pop[0] == nullptr) {
 			perror(pmemobj_errormsg());
 			goto free_pools;
@@ -408,6 +411,144 @@ pobj_init(struct benchmark *bench, struct benchmark_args *args)
 free_sets:
 	for (; i > 0; i--) {
 		pmemobj_close(bench_priv->pop[i - 1]);
+		free((char *)bench_priv->sets[i - 1]);
+	}
+free_pools:
+	free(bench_priv->sets);
+free_pop:
+	free(bench_priv->pop);
+free_random_sizes:
+	free(bench_priv->rand_sizes);
+free_random_types:
+	free(bench_priv->random_types);
+free_bench_priv:
+	free(bench_priv);
+
+	return -1;
+}
+
+/*
+ * pobj_create_init - common part of the benchmark initialization functions.
+ * Parses command line arguments, set variables but does not create persistent pools.
+ */
+static int
+pobj_create_init(struct benchmark *bench, struct benchmark_args *args)
+{
+	unsigned i = 0;
+	size_t psize;
+	size_t n_objs;
+
+	assert(bench != nullptr);
+	assert(args != nullptr);
+
+	enum file_type type = util_file_get_type(args->fname);
+	if (type == OTHER_ERROR) {
+		fprintf(stderr, "could not check type of file %s\n",
+			args->fname);
+		return -1;
+	}
+
+	auto *bench_priv =
+		(struct pobj_bench *)malloc(sizeof(struct pobj_bench));
+	if (bench_priv == nullptr) {
+		perror("malloc");
+		return -1;
+	}
+	assert(args->opts != nullptr);
+
+	bench_priv->args_priv = (struct pobj_args *)args->opts;
+	bench_priv->args_priv->obj_size = args->dsize;
+	bench_priv->args_priv->range =
+		bench_priv->args_priv->min_size > 0 ? true : false;
+	bench_priv->n_pools =
+		!bench_priv->args_priv->one_pool ? args->n_threads : 1;
+	bench_priv->pool = bench_priv->n_pools > 1 ? diff_num : one_num;
+	bench_priv->obj = !bench_priv->args_priv->one_obj ? diff_num : one_num;
+
+	if ((args->is_poolset || type == TYPE_DEVDAX) &&
+	    bench_priv->n_pools > 1) {
+		fprintf(stderr,
+			"cannot use poolset nor device dax for multiple pools,"
+			" please use -P|--one-pool option instead");
+		goto free_bench_priv;
+	}
+	/*
+	 * Multiplication by FACTOR prevents from out of memory error
+	 * as the actual size of the allocated persistent objects
+	 * is always larger than requested.
+	 */
+	n_objs = bench_priv->args_priv->n_objs;
+	if (bench_priv->n_pools == 1)
+		n_objs *= args->n_threads;
+	psize = PMEMOBJ_MIN_POOL +
+		n_objs * args->dsize * args->n_threads * FACTOR;
+
+	/* assign type_number determining function */
+	bench_priv->type_mode =
+		parse_type_mode(bench_priv->args_priv->type_num);
+	switch (bench_priv->type_mode) {
+		case MAX_TYPE_MODE:
+			fprintf(stderr, "unknown type mode");
+			goto free_bench_priv;
+		case TYPE_MODE_RAND:
+			if (random_types(bench_priv, args))
+				goto free_bench_priv;
+			break;
+		default:
+			bench_priv->random_types = nullptr;
+	}
+	bench_priv->fn_type_num = type_mode_func[bench_priv->type_mode];
+
+	/* assign size determining function */
+	bench_priv->fn_size =
+		bench_priv->args_priv->range ? range_size : static_size;
+	bench_priv->rand_sizes = nullptr;
+	if (bench_priv->args_priv->range) {
+		if (bench_priv->args_priv->min_size > args->dsize) {
+			fprintf(stderr, "Invalid allocation size");
+			goto free_random_types;
+		}
+		bench_priv->rand_sizes =
+			rand_sizes(bench_priv->args_priv->min_size,
+				   bench_priv->args_priv->obj_size,
+				   bench_priv->args_priv->n_objs);
+		if (bench_priv->rand_sizes == nullptr)
+			goto free_random_types;
+	}
+
+	assert(bench_priv->n_pools > 0);
+	bench_priv->pop = (PMEMobjpool **)calloc(bench_priv->n_pools,
+						 sizeof(PMEMobjpool *));
+	if (bench_priv->pop == nullptr) {
+		perror("calloc");
+		goto free_random_sizes;
+	}
+
+	bench_priv->sets = (const char **)calloc(bench_priv->n_pools,
+						 sizeof(const char *));
+	if (bench_priv->sets == nullptr) {
+		perror("calloc");
+		goto free_pop;
+	}
+	if (bench_priv->n_pools > 1) {
+		fprintf(stderr, "Create benchmarks does not support poolsets");
+		goto free_sets;
+	} else {
+		if (args->is_poolset || type == TYPE_DEVDAX) {
+			if (args->fsize < psize) {
+				fprintf(stderr, "file size too large\n");
+				goto free_pools;
+			}
+			psize = 0;
+		}
+		bench_priv->sets[0] = args->fname;
+		bench_priv->psize = psize;
+	}
+	pmembench_set_priv(bench, bench_priv);
+
+	return 0;
+free_sets:
+	for (; i > 0; i--) {
 		free((char *)bench_priv->sets[i - 1]);
 	}
 free_pools:
@@ -462,6 +603,74 @@ pobj_exit(struct benchmark *bench, struct benchmark_args *args)
 }
 
 /*
+ * pobj_create_remove_file -- remove file if exists
+ */
+static int
+pobj_create_remove_file(const char *path)
+{
+	int ret = 0;
+	os_stat_t status;
+	char *tmp;
+
+	int exists = util_file_exists(path);
+	if (exists < 0)
+		return -1;
+
+	if (!exists)
+		return 0;
+
+	if (os_stat(path, &status) != 0)
+		return 0;
+
+	if (!(status.st_mode & S_IFDIR))
+		return pmempool_rm(path, 0);
+
+	struct dir_handle it;
+	struct file_info info;
+
+	if (util_file_dir_open(&it, path)) {
+		return -1;
+	}
+
+	while (util_file_dir_next(&it, &info) == 0) {
+		if (strcmp(info.filename, ".") == 0 ||
+		    strcmp(info.filename, "..") == 0)
+			continue;
+		tmp = (char *)malloc(strlen(path) + strlen(info.filename) + 2);
+		if (tmp == nullptr)
+			return -1;
+		sprintf(tmp, "%s" OS_DIR_SEP_STR "%s", path, info.filename);
+		ret = info.is_dir ? pobj_create_remove_file(tmp)
+				  : util_unlink(tmp);
+		free(tmp);
+		if (ret != 0) {
+			util_file_dir_close(&it);
+			return ret;
+		}
+	}
+
+	util_file_dir_close(&it);
+
+	return util_file_dir_remove(path);
+}
+
+/*
+ * pobj_create_exit -- exit for the pobj_create benchmark
+ */
+static int
+pobj_create_exit(struct benchmark *bench, struct benchmark_args *args)
+{
+	auto *bench_priv = (struct pobj_bench *)pmembench_get_priv(bench);
+	pobj_create_remove_file(bench_priv->sets[0]);
+	free(bench_priv->sets);
+	free(bench_priv->pop);
+	free(bench_priv->rand_sizes);
+	free(bench_priv->random_types);
+	free(bench_priv);
+	return 0;
+}
+
+/*
  * pobj_init_worker -- worker initialization
  */
 static int
@@ -502,6 +711,23 @@ out:
 	free(pw->oids);
 	free(pw);
 	return -1;
+}
+
+/*
+ * pobj_create_init_worker -- worker initialization for pmemobj_create bench
+ */
+static int
+pobj_create_init_worker(struct benchmark *bench, struct benchmark_args *args,
+		 struct worker_info *worker)
+{
+	auto *pw = (struct pobj_worker *)calloc(1, sizeof(struct pobj_worker));
+	if (pw == nullptr) {
+		perror("calloc");
+		return -1;
+	}
+
+	worker->priv = pw;
+	return 0;
 }
 
 /*
@@ -546,6 +772,23 @@ pobj_open_op(struct benchmark *bench, struct operation_info *info)
 }
 
 /*
+ * pobj_create_op -- main operations of the obj_create benchmark.
+ */
+static int
+pobj_create_op(struct benchmark *bench, struct operation_info *info)
+{
+	auto *bench_priv = (struct pobj_bench *)pmembench_get_priv(bench);
+	size_t idx = bench_priv->pool(info->worker->index);
+	//pobj_create_remove_file(bench_priv->sets[idx]);
+	bench_priv->pop[idx] = pmemobj_create(bench_priv->sets[idx], LAYOUT_NAME, 
+							bench_priv->psize, FILE_MODE);
+	if (bench_priv->pop[idx] == nullptr)
+		return -1;
+	pmemobj_close(bench_priv->pop[idx]);
+	return 0;
+}
+
+/*
  * pobj_free_worker -- worker exit function
  */
 static void
@@ -560,8 +803,20 @@ pobj_free_worker(struct benchmark *bench, struct benchmark_args *args,
 	free(pw);
 }
 
+/*
+ * pobj_create_free_worker -- worker exit function for create benchmark
+ */
+static void
+pobj_create_free_worker(struct benchmark *bench, struct benchmark_args *args,
+		 struct worker_info *worker)
+{
+	auto *pw = (struct pobj_worker *)worker->priv;
+	free(pw);
+}
+
 static struct benchmark_info obj_open;
 static struct benchmark_info obj_direct;
+static struct benchmark_info obj_create;
 
 /* Array defining common command line arguments. */
 static struct benchmark_clo pobj_direct_clo[4];
@@ -635,6 +890,7 @@ pmemobj_gen_constructor(void)
 	pobj_open_clo[2].type_uint.min = 1;
 	pobj_open_clo[2].type_uint.max = UINT_MAX;
 
+
 	obj_open.name = "obj_open";
 	obj_open.brief = "pmemobj_open() benchmark";
 	obj_open.init = pobj_init;
@@ -668,4 +924,22 @@ pmemobj_gen_constructor(void)
 	obj_direct.rm_file = true;
 	obj_direct.allow_poolset = true;
 	REGISTER_BENCHMARK(obj_direct);
+
+
+	obj_create.name = "obj_create";
+	obj_create.brief = "pmemobj_create() benchmark";
+	obj_create.init = pobj_create_init;
+	obj_create.exit = pobj_create_exit;
+	obj_create.multithread = true;
+	obj_create.multiops = true;
+	obj_create.init_worker = pobj_create_init_worker;
+	obj_create.free_worker = pobj_create_free_worker;
+	obj_create.operation = pobj_create_op;
+	obj_create.measure_time = true;
+	obj_create.clos = pobj_open_clo;
+	obj_create.nclos = ARRAY_SIZE(pobj_open_clo);
+	obj_create.opts_size = sizeof(struct pobj_args);
+	obj_create.rm_file = true;
+	obj_create.allow_poolset = true;
+	REGISTER_BENCHMARK(obj_create);
 };
