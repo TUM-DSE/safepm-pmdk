@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /* Copyright 2015-2018, Intel Corporation */
 /*
- * map_bench.cpp -- benchmarks for: ctree, btree, rtree, rbtree, hashmap_atomic
- * and hashmap_tx from examples.
+ * map_bench.cpp -- benchmarks for: ctree, btree, rtree, rbtree, hashmap_atomic,
+ * hashmap_tx and hashmap_tx_unsafe from examples.
  */
 #include <cassert>
 
@@ -18,6 +18,7 @@
 #include "map_hashmap_atomic.h"
 #include "map_hashmap_rp.h"
 #include "map_hashmap_tx.h"
+#include "map_hashmap_tx_unsafe.h"
 #include "map_rbtree.h"
 #include "map_rtree.h"
 
@@ -49,7 +50,8 @@ static const struct {
 } map_types[] = {
 	{"ctree", MAP_CTREE},		{"btree", MAP_BTREE},
 	{"rtree", MAP_RTREE},		{"rbtree", MAP_RBTREE},
-	{"hashmap_tx", MAP_HASHMAP_TX}, {"hashmap_atomic", MAP_HASHMAP_ATOMIC},
+	{"hashmap_tx", MAP_HASHMAP_TX}, {"hashmap_tx_unsafe", MAP_HASHMAP_TX_UNSAFE},
+	{"hashmap_atomic", MAP_HASHMAP_ATOMIC},
 	{"hashmap_rp", MAP_HASHMAP_RP}};
 
 #define MAP_TYPES_NUM (sizeof(map_types) / sizeof(map_types[0]))
@@ -747,7 +749,7 @@ map_bench_constructor(void)
 	map_bench_clos[0].opt_long = "type";
 	map_bench_clos[0].descr =
 		"Type of container "
-		"[ctree|btree|rtree|rbtree|hashmap_tx|hashmap_atomic]";
+		"[ctree|btree|rtree|rbtree|hashmap_tx|hashmap_tx_unsafe|hashmap_atomic]";
 
 	map_bench_clos[0].off = clo_field_offset(struct map_bench_args, type);
 	map_bench_clos[0].type = CLO_TYPE_STR;
