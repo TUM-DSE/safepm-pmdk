@@ -72,20 +72,31 @@ EXPORTS
 	pmemobj_tx_end
 	pmemobj_tx_process
 	pmemobj_tx_add_range
+	pmemobj_tx_add_range_unsafe
 	pmemobj_tx_add_range_direct
+	pmemobj_tx_add_range_direct_unsafe
 	pmemobj_tx_alloc
+	pmemobj_tx_alloc_unsafe
 	pmemobj_tx_xadd_range
+	pmemobj_tx_xadd_range_unsafe
 	pmemobj_tx_xadd_range_direct
+	pmemobj_tx_xadd_range_direct_unsafe
 	pmemobj_tx_xalloc
+	pmemobj_tx_xalloc_unsafe
 	pmemobj_tx_zalloc
+	pmemobj_tx_zalloc_unsafe
 	pmemobj_tx_realloc
+	pmemobj_tx_realloc_unsafe
 	pmemobj_tx_zrealloc
+	pmemobj_tx_zrealloc_unsafe
 	pmemobj_tx_strdup
 	pmemobj_tx_xstrdup
 	pmemobj_tx_wcsdup
 	pmemobj_tx_xwcsdup
 	pmemobj_tx_free
+	pmemobj_tx_free_unsafe
 	pmemobj_tx_xfree
+	pmemobj_tx_xfree_unsafe
 	pmemobj_tx_errno
 	pmemobj_tx_lock
 	pmemobj_tx_xlock

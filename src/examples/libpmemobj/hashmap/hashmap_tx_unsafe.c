@@ -59,7 +59,7 @@ create_hashmap_unsafe(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap, uint32_
 			len * sizeof(TOID(struct entry));
 
 	TX_BEGIN(pop) {
-		TX_ADD(hashmap);
+		TX_ADD_UNSAFE(hashmap);
 
 		D_RW(hashmap)->seed = seed;
 		do {
@@ -68,7 +68,7 @@ create_hashmap_unsafe(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap, uint32_
 		D_RW(hashmap)->hash_fun_b = (uint32_t)rand();
 		D_RW(hashmap)->hash_fun_p = HASH_FUNC_COEFF_P;
 
-		D_RW(hashmap)->buckets = TX_ZALLOC(struct buckets, sz);
+		D_RW(hashmap)->buckets = TX_ZALLOC_UNSAFE(struct buckets, sz);
 		D_RW(D_RW(hashmap)->buckets)->nbuckets = len;
 	} TX_ONABORT {
 		//fprintf(stderr, "%s: transaction aborted: %s\n", __func__,
@@ -113,11 +113,11 @@ hm_tx_unsafe_rebuild(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap, size_t n
 			new_len * sizeof(TOID(struct entry));
 
 	TX_BEGIN(pop) {
-		TX_ADD_FIELD(hashmap, buckets);
+		TX_ADD_FIELD_UNSAFE(hashmap, buckets);
 		TOID(struct buckets) buckets_new =
-				TX_ZALLOC(struct buckets, sz_new);
+				TX_ZALLOC_UNSAFE(struct buckets, sz_new);
 		D_RW(buckets_new)->nbuckets = new_len;
-		pmemobj_tx_add_range(buckets_old.oid, 0, sz_old);
+		pmemobj_tx_add_range_unsafe(buckets_old.oid, 0, sz_old);
 
 		for (size_t i = 0; i < D_RO(buckets_old)->nbuckets; ++i) {
 			while (!TOID_IS_NULL(D_RO(buckets_old)->bucket[i])) {
@@ -128,14 +128,14 @@ hm_tx_unsafe_rebuild(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap, size_t n
 
 				D_RW(buckets_old)->bucket[i] = D_RO(en)->next;
 
-				TX_ADD_FIELD(en, next);
+				TX_ADD_FIELD_UNSAFE(en, next);
 				D_RW(en)->next = D_RO(buckets_new)->bucket[h];
 				D_RW(buckets_new)->bucket[h] = en;
 			}
 		}
 
 		D_RW(hashmap)->buckets = buckets_new;
-		TX_FREE(buckets_old);
+		TX_FREE_UNSAFE(buckets_old);
 	} TX_ONABORT {
 		//fprintf(stderr, "%s: transaction aborted: %s\n", __func__,
 		//	pmemobj_errormsg());
@@ -175,10 +175,10 @@ hm_tx_unsafe_insert(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
 
 	int ret = 0;
 	TX_BEGIN(pop) {
-		TX_ADD_FIELD(D_RO(hashmap)->buckets, bucket[h]);
-		TX_ADD_FIELD(hashmap, count);
+		TX_ADD_FIELD_UNSAFE(D_RO(hashmap)->buckets, bucket[h]);
+		TX_ADD_FIELD_UNSAFE(hashmap, count);
 
-		TOID(struct entry) e = TX_NEW(struct entry);
+		TOID(struct entry) e = TX_NEW_UNSAFE(struct entry);
 		D_RW(e)->key = key;
 		D_RW(e)->value = value;
 		D_RW(e)->next = D_RO(buckets)->bucket[h];
@@ -231,17 +231,17 @@ hm_tx_unsafe_remove(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap, uint64_t 
 	PMEMoid retoid = D_RO(var)->value;
 	TX_BEGIN(pop) {
 		if (TOID_IS_NULL(prev))
-			TX_ADD_FIELD(D_RO(hashmap)->buckets, bucket[h]);
+			TX_ADD_FIELD_UNSAFE(D_RO(hashmap)->buckets, bucket[h]);
 		else
-			TX_ADD_FIELD(prev, next);
-		TX_ADD_FIELD(hashmap, count);
+			TX_ADD_FIELD_UNSAFE(prev, next);
+		TX_ADD_FIELD_UNSAFE(hashmap, count);
 
 		if (TOID_IS_NULL(prev))
 			D_RW(buckets)->bucket[h] = D_RO(var)->next;
 		else
 			D_RW(prev)->next = D_RO(var)->next;
 		D_RW(hashmap)->count--;
-		TX_FREE(var);
+		TX_FREE_UNSAFE(var);
 	} TX_ONABORT {
 		//fprintf(stderr, "transaction aborted: %s\n",
 		//	pmemobj_errormsg());
@@ -357,8 +357,8 @@ hm_tx_unsafe_create(PMEMobjpool *pop, TOID(struct hashmap_tx) *map, void *arg)
 	struct hashmap_args *args = (struct hashmap_args *)arg;
 	int ret = 0;
 	TX_BEGIN(pop) {
-		TX_ADD_DIRECT(map);
-		*map = TX_ZNEW(struct hashmap_tx);
+		TX_ADD_DIRECT_UNSAFE(map);
+		*map = TX_ZNEW_UNSAFE(struct hashmap_tx);
 
 		uint32_t seed = args ? args->seed : 0;
 		create_hashmap_unsafe(pop, *map, seed);

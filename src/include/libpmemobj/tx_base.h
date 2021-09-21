@@ -204,6 +204,7 @@ int pmemobj_tx_errno(void);
  * This function must be called during TX_STAGE_WORK.
  */
 int pmemobj_tx_add_range(PMEMoid oid, uint64_t off, size_t size);
+int pmemobj_tx_add_range_unsafe(PMEMoid oid, uint64_t off, size_t size);
 
 /*
  * Takes a "snapshot" of the given memory region and saves it in the undo log.
@@ -218,6 +219,7 @@ int pmemobj_tx_add_range(PMEMoid oid, uint64_t off, size_t size);
  * This function must be called during TX_STAGE_WORK.
  */
 int pmemobj_tx_add_range_direct(const void *ptr, size_t size);
+int pmemobj_tx_add_range_direct_unsafe(const void *ptr, size_t size);
 
 /*
  * Behaves exactly the same as pmemobj_tx_add_range when 'flags' equals 0.
@@ -230,6 +232,8 @@ int pmemobj_tx_add_range_direct(const void *ptr, size_t size);
  */
 int pmemobj_tx_xadd_range(PMEMoid oid, uint64_t off, size_t size,
 		uint64_t flags);
+int pmemobj_tx_xadd_range_unsafe(PMEMoid oid, uint64_t off, size_t size,
+		uint64_t flags);
 
 /*
  * Behaves exactly the same as pmemobj_tx_add_range_direct when 'flags' equals
@@ -241,6 +245,7 @@ int pmemobj_tx_xadd_range(PMEMoid oid, uint64_t off, size_t size,
  *  do not abort the transaction and return the error number.
  */
 int pmemobj_tx_xadd_range_direct(const void *ptr, size_t size, uint64_t flags);
+int pmemobj_tx_xadd_range_direct_unsafe(const void *ptr, size_t size, uint64_t flags);
 
 /*
  * Transactionally allocates a new object.
@@ -251,6 +256,7 @@ int pmemobj_tx_xadd_range_direct(const void *ptr, size_t size, uint64_t flags);
  * This function must be called during TX_STAGE_WORK.
  */
 PMEMoid pmemobj_tx_alloc(size_t size, uint64_t type_num);
+PMEMoid pmemobj_tx_alloc_unsafe(size_t size, uint64_t type_num);
 
 /*
  * Transactionally allocates a new object.
@@ -266,6 +272,7 @@ PMEMoid pmemobj_tx_alloc(size_t size, uint64_t type_num);
  * This function must be called during TX_STAGE_WORK.
  */
 PMEMoid pmemobj_tx_xalloc(size_t size, uint64_t type_num, uint64_t flags);
+PMEMoid pmemobj_tx_xalloc_unsafe(size_t size, uint64_t type_num, uint64_t flags);
 
 /*
  * Transactionally allocates new zeroed object.
@@ -276,6 +283,7 @@ PMEMoid pmemobj_tx_xalloc(size_t size, uint64_t type_num, uint64_t flags);
  * This function must be called during TX_STAGE_WORK.
  */
 PMEMoid pmemobj_tx_zalloc(size_t size, uint64_t type_num);
+PMEMoid pmemobj_tx_zalloc_unsafe(size_t size, uint64_t type_num);
 
 /*
  * Transactionally resizes an existing object.
@@ -286,6 +294,7 @@ PMEMoid pmemobj_tx_zalloc(size_t size, uint64_t type_num);
  * This function must be called during TX_STAGE_WORK.
  */
 PMEMoid pmemobj_tx_realloc(PMEMoid oid, size_t size, uint64_t type_num);
+PMEMoid pmemobj_tx_realloc_unsafe(PMEMoid oid, size_t size, uint64_t type_num);
 
 /*
  * Transactionally resizes an existing object, if extended new space is zeroed.
@@ -296,6 +305,7 @@ PMEMoid pmemobj_tx_realloc(PMEMoid oid, size_t size, uint64_t type_num);
  * This function must be called during TX_STAGE_WORK.
  */
 PMEMoid pmemobj_tx_zrealloc(PMEMoid oid, size_t size, uint64_t type_num);
+PMEMoid pmemobj_tx_zrealloc_unsafe(PMEMoid oid, size_t size, uint64_t type_num);
 
 /*
  * Transactionally allocates a new object with duplicate of the string s.
@@ -358,6 +368,7 @@ PMEMoid pmemobj_tx_xwcsdup(const wchar_t *s, uint64_t type_num, uint64_t flags);
  * This function must be called during TX_STAGE_WORK.
  */
 int pmemobj_tx_free(PMEMoid oid);
+int pmemobj_tx_free_unsafe(PMEMoid oid);
 
 /*
  * Transactionally frees an existing object.
@@ -372,6 +383,7 @@ int pmemobj_tx_free(PMEMoid oid);
  * This function must be called during TX_STAGE_WORK.
  */
 int pmemobj_tx_xfree(PMEMoid oid, uint64_t flags);
+int pmemobj_tx_xfree_unsafe(PMEMoid oid, uint64_t flags);
 
 /*
  * Append user allocated buffer to the ulog.

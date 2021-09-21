@@ -226,7 +226,7 @@ constructor_tx_alloc(void *ctx, void *ptr, size_t usable_size, void *arg)
 	VALGRIND_ADD_TO_TX(ptr, usable_size);
 
 	if (args->flags & POBJ_FLAG_ZERO)
-		memset(ptr, 0, usable_size);
+		pmdk_asan_memset(ptr, 0, usable_size);
 
 	if (args->copy_ptr && args->copy_size != 0) {
 		pmdk_asan_memcpy(ptr, args->copy_ptr, args->copy_size);
@@ -1581,8 +1581,8 @@ pmemobj_tx_alloc_no_asan(size_t size, uint64_t type_num)
 /*
  * pmemobj_tx_zalloc -- allocates a new zeroed object
  */
-/*PMEMoid
-pmemobj_tx_zalloc(size_t size, uint64_t type_num)
+PMEMoid
+pmemobj_tx_zalloc_no_asan(size_t size, uint64_t type_num)
 {
 	LOG(3, NULL);
 	struct tx *tx = get_tx();
@@ -1607,7 +1607,7 @@ pmemobj_tx_zalloc(size_t size, uint64_t type_num)
 
 	PMEMOBJ_API_END();
 	return oid;
-}*/
+}
 
 /*
  * pmemobj_tx_xalloc -- allocates a new object
@@ -1681,22 +1681,22 @@ pmemobj_tx_realloc_no_asan(PMEMoid oid, size_t size, uint64_t type_num)
 /*
  * pmemobj_zrealloc -- resizes an existing object, any new space is zeroed.
  */
-// PMEMoid
-// pmemobj_tx_zrealloc(PMEMoid oid, size_t size, uint64_t type_num)
-// {
-// 	LOG(3, NULL);
-// 	struct tx *tx = get_tx();
-//
-// 	ASSERT_IN_TX(tx);
-// 	ASSERT_TX_STAGE_WORK(tx);
-//
-// 	PMEMOBJ_API_START();
-// 	PMEMoid ret = tx_realloc_common(tx, oid, size, type_num,
-// 			constructor_tx_alloc, constructor_tx_alloc,
-// 			POBJ_FLAG_ZERO);
-// 	PMEMOBJ_API_END();
-// 	return ret;
-// }
+PMEMoid
+pmemobj_tx_zrealloc_no_asan(PMEMoid oid, size_t size, uint64_t type_num)
+{
+ 	LOG(3, NULL);
+ 	struct tx *tx = get_tx();
+
+ 	ASSERT_IN_TX(tx);
+ 	ASSERT_TX_STAGE_WORK(tx);
+
+ 	PMEMOBJ_API_START();
+ 	PMEMoid ret = tx_realloc_common(tx, oid, size, type_num,
+ 			constructor_tx_alloc, constructor_tx_alloc,
+ 			POBJ_FLAG_ZERO);
+ 	PMEMOBJ_API_END();
+ 	return ret;
+}
 
 /*
  * pmemobj_tx_xstrdup -- allocates a new object with duplicate of the string s.

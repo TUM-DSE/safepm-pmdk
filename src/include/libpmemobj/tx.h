@@ -92,39 +92,63 @@ _pobj_validate_cb_sig(pmemobj_tx_callback cb)
 
 #define TX_ADD(o)\
 pmemobj_tx_add_range((o).oid, 0, sizeof(*(o)._type))
+#define TX_ADD_UNSAFE(o)\
+pmemobj_tx_add_range_unsafe((o).oid, 0, sizeof(*(o)._type))
 
 #define TX_ADD_FIELD(o, field)\
 	TX_ADD_DIRECT(&(D_RO(o)->field))
+#define TX_ADD_FIELD_UNSAFE(o, field)\
+	TX_ADD_DIRECT_UNSAFE(&(D_RO(o)->field))
 
 #define TX_ADD_DIRECT(p)\
 pmemobj_tx_add_range_direct(p, sizeof(*(p)))
+#define TX_ADD_DIRECT_UNSAFE(p)\
+pmemobj_tx_add_range_direct_unsafe(p, sizeof(*(p)))
 
 #define TX_ADD_FIELD_DIRECT(p, field)\
 pmemobj_tx_add_range_direct(&(p)->field, sizeof((p)->field))
+#define TX_ADD_FIELD_DIRECT_UNSAFE(p, field)\
+pmemobj_tx_add_range_direct_unsafe(&(p)->field, sizeof((p)->field))
 
 #define TX_XADD(o, flags)\
 pmemobj_tx_xadd_range((o).oid, 0, sizeof(*(o)._type), flags)
+#define TX_XADD_UNSAFE(o, flags)\
+pmemobj_tx_xadd_range_unsafe((o).oid, 0, sizeof(*(o)._type), flags)
 
 #define TX_XADD_FIELD(o, field, flags)\
 	TX_XADD_DIRECT(&(D_RO(o)->field), flags)
+#define TX_XADD_FIELD_UNSAFE(o, field, flags)\
+	TX_XADD_DIRECT_UNSAFE(&(D_RO(o)->field), flags)
 
 #define TX_XADD_DIRECT(p, flags)\
 pmemobj_tx_xadd_range_direct(p, sizeof(*(p)), flags)
+#define TX_XADD_DIRECT_UNSAFE(p, flags)\
+pmemobj_tx_xadd_range_direct_unsafe(p, sizeof(*(p)), flags)
 
 #define TX_XADD_FIELD_DIRECT(p, field, flags)\
 pmemobj_tx_xadd_range_direct(&(p)->field, sizeof((p)->field), flags)
+#define TX_XADD_FIELD_DIRECT_UNSAFE(p, field, flags)\
+pmemobj_tx_xadd_range_direct_unsafe(&(p)->field, sizeof((p)->field), flags)
 
 #define TX_NEW(t)\
 ((TOID(t))pmemobj_tx_alloc(sizeof(t), TOID_TYPE_NUM(t)))
+#define TX_NEW_UNSAFE(t)\
+((TOID(t))pmemobj_tx_alloc_unsafe(sizeof(t), TOID_TYPE_NUM(t)))
 
 #define TX_ALLOC(t, size)\
 ((TOID(t))pmemobj_tx_alloc(size, TOID_TYPE_NUM(t)))
+#define TX_ALLOC_UNSAFE(t, size)\
+((TOID(t))pmemobj_tx_alloc_unsafe(size, TOID_TYPE_NUM(t)))
 
 #define TX_ZNEW(t)\
 ((TOID(t))pmemobj_tx_zalloc(sizeof(t), TOID_TYPE_NUM(t)))
+#define TX_ZNEW_UNSAFE(t)\
+((TOID(t))pmemobj_tx_zalloc_unsafe(sizeof(t), TOID_TYPE_NUM(t)))
 
 #define TX_ZALLOC(t, size)\
 ((TOID(t))pmemobj_tx_zalloc(size, TOID_TYPE_NUM(t)))
+#define TX_ZALLOC_UNSAFE(t, size)\
+((TOID(t))pmemobj_tx_zalloc_unsafe(size, TOID_TYPE_NUM(t)))
 
 #define TX_XALLOC(t, size, flags)\
 ((TOID(t))pmemobj_tx_xalloc(size, TOID_TYPE_NUM(t), flags))
@@ -152,16 +176,26 @@ pmemobj_tx_xwcsdup(s, type_num, flags)
 
 #define TX_FREE(o)\
 pmemobj_tx_free((o).oid)
+#define TX_FREE_UNSAFE(o)\
+pmemobj_tx_free_unsafe((o).oid)
 
 #define TX_XFREE(o, flags)\
 pmemobj_tx_xfree((o).oid, flags)
+#define TX_XFREE_UNSAFE(o, flags)\
+pmemobj_tx_xfree_unsafe((o).oid, flags)
 
 #define TX_SET(o, field, value) (\
 	TX_ADD_FIELD(o, field),\
 	D_RW(o)->field = (value))
+#define TX_SET_UNSAFE(o, field, value) (\
+	TX_ADD_FIELD_UNSAFE(o, field),\
+	D_RW(o)->field = (value))
 
 #define TX_SET_DIRECT(p, field, value) (\
 	TX_ADD_FIELD_DIRECT(p, field),\
+	(p)->field = (value))
+#define TX_SET_DIRECT_UNSAFE(p, field, value) (\
+	TX_ADD_FIELD_DIRECT_UNSAFE(p, field),\
 	(p)->field = (value))
 
 static inline void *
@@ -175,6 +209,22 @@ static inline void *
 TX_MEMSET(void *dest, int c, size_t num)
 {
 	pmemobj_tx_add_range_direct(dest, num);
+	return memset(dest, c, num);
+}
+
+__attribute__((no_sanitize_address))
+static inline void *
+TX_MEMCPY_UNSAFE(void *dest, const void *src, size_t num)
+{
+	pmemobj_tx_add_range_direct_unsafe(dest, num);
+	return memcpy(dest, src, num);
+}
+
+__attribute__((no_sanitize_address))
+static inline void *
+TX_MEMSET_UNSAFE(void *dest, int c, size_t num)
+{
+	pmemobj_tx_add_range_direct_unsafe(dest, num);
 	return memset(dest, c, num);
 }
 

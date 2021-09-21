@@ -32,11 +32,16 @@ extern "C" {
  */
 int pmemobj_alloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	uint64_t type_num, pmemobj_constr constructor, void *arg);
+int pmemobj_alloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+	uint64_t type_num, pmemobj_constr constructor, void *arg);
 
 /*
  * Allocates with flags a new object from the pool.
  */
 int pmemobj_xalloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+	uint64_t type_num, uint64_t flags,
+	pmemobj_constr constructor, void *arg);
+int pmemobj_xalloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	uint64_t type_num, uint64_t flags,
 	pmemobj_constr constructor, void *arg);
 
@@ -45,17 +50,23 @@ int pmemobj_xalloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
  */
 int pmemobj_zalloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	uint64_t type_num);
+int pmemobj_zalloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+	uint64_t type_num);
 
 /*
  * Resizes an existing object.
  */
 int pmemobj_realloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	uint64_t type_num);
+int pmemobj_realloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+	uint64_t type_num);
 
 /*
  * Resizes an existing object, if extended new space is zeroed.
  */
 int pmemobj_zrealloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+	uint64_t type_num);
+int pmemobj_zrealloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	uint64_t type_num);
 
 /*
@@ -74,6 +85,7 @@ int pmemobj_wcsdup(PMEMobjpool *pop, PMEMoid *oidp, const wchar_t *s,
  * Frees an existing object.
  */
 void pmemobj_free(PMEMoid *oidp);
+void pmemobj_free_unsafe(PMEMoid *oidp);
 
 struct pobj_defrag_result {
 	size_t total; /* number of processed objects */

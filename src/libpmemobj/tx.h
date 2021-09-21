@@ -51,12 +51,16 @@ PMEMoid
 pmemobj_tx_alloc_no_asan(size_t size, uint64_t type_num);
 PMEMoid
 pmemobj_tx_xalloc_no_asan(size_t size, uint64_t type_num, uint64_t flags);
+PMEMoid
+pmemobj_tx_zalloc_no_asan(size_t size, uint64_t type_num);
 int
 pmemobj_tx_free_no_asan(PMEMoid oid);
 int
 pmemobj_tx_xfree_no_asan(PMEMoid oid, uint64_t flags);
 PMEMoid
 pmemobj_tx_realloc_no_asan(PMEMoid oid, size_t size, uint64_t type_num);
+PMEMoid
+pmemobj_tx_zrealloc_no_asan(PMEMoid oid, size_t size, uint64_t type_num);
 int
 pmemobj_tx_add_range_no_asan(PMEMoid oid, uint64_t hoff, size_t size);
 int

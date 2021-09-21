@@ -416,3 +416,104 @@ pmemobj_tx_xadd_range_direct(const void *ptr, size_t size, uint64_t flags) {
 //PMEMoid pmemobj_tx_wcsdup(const wchar_t *s, uint64_t type_num);
 //PMEMoid pmemobj_tx_xwcsdup(const wchar_t *s, uint64_t type_num, uint64_t flags);
 //int pmemobj_strdup(PMEMobjpool *pop, PMEMoid *oidp, const char *s, uint64_t type_num);
+
+/*
+ * Non-safe object management
+ */
+static inline int
+zalloc_zeroer_unsafe(PMEMobjpool *pop, void *ptr, void *arg) {
+	TX_MEMSET_UNSAFE(ptr, 0, (size_t)arg);
+	return 0;
+}
+
+inline PMEMoid pmemobj_tx_alloc_unsafe(size_t size, uint64_t type_num) {
+	return pmemobj_tx_xalloc_no_asan(size, type_num, 0);
+}
+inline int pmemobj_tx_free_unsafe(PMEMoid oid) {
+	return pmemobj_tx_xfree_no_asan(oid, 0);
+}
+inline int
+pmemobj_tx_xfree_unsafe(PMEMoid oid, uint64_t flags) {
+	return pmemobj_tx_xfree_no_asan(oid, flags);
+}
+
+inline PMEMoid pmemobj_tx_zalloc_unsafe(size_t size, uint64_t type_num) {
+	PMEMoid user = pmemobj_tx_zalloc_no_asan(size, type_num);
+	if (OID_IS_NULL(user))
+		return user;
+
+	//TX_MEMSET_UNSAFE(pmemobj_direct(user), 0, size);
+	return user;
+}
+
+inline int pmemobj_alloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+	uint64_t type_num, pmemobj_constr constructor, void *arg) {
+    return pmemobj_alloc_no_asan(pop, oidp, size, type_num, constructor, arg);
+}
+
+inline int pmemobj_zalloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+    uint64_t type_num) {
+	return pmemobj_alloc_unsafe(pop, oidp, size, type_num, zalloc_zeroer_unsafe, 
+								(void*)size);
+}
+inline void pmemobj_free_unsafe(PMEMoid *oidp) {
+	ASSERTne(oidp, NULL);
+	if (OID_IS_NULL(*oidp))
+		return ;
+	pmemobj_free_no_asan(oidp);
+}
+
+inline PMEMoid
+pmemobj_tx_realloc_unsafe(PMEMoid oid, size_t size, uint64_t type_num) {
+	return pmemobj_tx_realloc_no_asan(oid, size, type_num);
+}
+
+inline PMEMoid
+pmemobj_tx_zrealloc_unsafe(PMEMoid oid, size_t size, uint64_t type_num) {
+	return pmemobj_tx_zrealloc_no_asan(oid, size, type_num);
+}
+
+inline int
+pmemobj_realloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type_num) {
+	ASSERTne(oidp, NULL);
+	return pmemobj_realloc_no_asan(pop, oidp, size, type_num);
+}
+
+inline int 
+pmemobj_zrealloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type_num) {
+	ASSERTne(oidp, NULL);
+	return pmemobj_zrealloc_no_asan(pop, oidp, size, type_num);
+}
+
+inline PMEMoid
+pmemobj_tx_xalloc_unsafe(size_t size, uint64_t type_num, uint64_t flags) {
+	return pmemobj_tx_xalloc_no_asan(size, type_num, flags);
+}
+
+inline int
+pmemobj_xalloc_unsafe(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
+	uint64_t type_num, uint64_t flags,
+	pmemobj_constr constructor, void *arg) {
+	return pmemobj_xalloc_no_asan(pop, oidp, size, type_num, flags, constructor, arg);
+}
+
+inline int
+pmemobj_tx_xadd_range_unsafe(PMEMoid oid, uint64_t hoff, size_t size, uint64_t flags) {
+	void* ptr = (uint8_t*)pmemobj_pool_by_oid(oid)+oid.off+hoff;
+	return pmemobj_tx_xadd_range_direct_unsafe(ptr, size, flags);
+}
+
+inline int
+pmemobj_tx_add_range_unsafe(PMEMoid oid, uint64_t hoff, size_t size) {
+	return pmemobj_tx_xadd_range_unsafe(oid, hoff, size, 0);
+}
+
+inline int
+pmemobj_tx_add_range_direct_unsafe(const void *ptr, size_t size) {
+	return pmemobj_tx_xadd_range_direct_unsafe(ptr, size, 0);
+}
+
+inline int
+pmemobj_tx_xadd_range_direct_unsafe(const void *ptr, size_t size, uint64_t flags) {
+	return pmemobj_tx_xadd_range_direct_no_asan(ptr, size, flags);
+}

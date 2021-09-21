@@ -311,6 +311,10 @@ int pmemobj_zalloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 int pmemobj_xalloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size,
 	uint64_t type_num, uint64_t flags,
 	pmemobj_constr constructor, void *arg);
+int pmemobj_realloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size, 
+	uint64_t type_num);
+int pmemobj_zrealloc_no_asan(PMEMobjpool *pop, PMEMoid *oidp, size_t size, 
+	uint64_t type_num);
 void pmemobj_free_no_asan(PMEMoid *oidp);
 PMEMoid
 pmemobj_first_no_asan(PMEMobjpool *pop);
