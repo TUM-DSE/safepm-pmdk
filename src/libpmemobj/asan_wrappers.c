@@ -200,12 +200,7 @@ pmemobj_tx_xfree(PMEMoid oid, uint64_t flags) {
 	return 0;
 }
 PMEMoid pmemobj_tx_zalloc(size_t size, uint64_t type_num) {
-	PMEMoid user = pmemobj_tx_alloc(size, type_num);
-	if (OID_IS_NULL(user))
-		return user;
-
-	TX_MEMSET(pmemobj_direct(user), 0, size);
-	return user;
+	return pmemobj_tx_xalloc(size, type_num, POBJ_FLAG_ZERO);
 }
 size_t
 pmemobj_alloc_usable_size(PMEMoid oid) {
@@ -354,8 +349,13 @@ int pmemobj_zrealloc(PMEMobjpool *pop, PMEMoid *oidp, size_t size, uint64_t type
 
 PMEMoid
 pmemobj_tx_xalloc(size_t size, uint64_t type_num, uint64_t flags) {
-	PMEMoid orig = pmemobj_tx_xalloc_no_asan(size+2*pmdk_asan_RED_ZONE_SIZE, type_num+TOID_TYPE_NUM(struct pmemobj_asan_end), flags);
-	return alloc_additional_work(orig, size, flags);
+	PMEMoid orig = pmemobj_tx_xalloc_no_asan(size+2*pmdk_asan_RED_ZONE_SIZE, type_num+TOID_TYPE_NUM(struct pmemobj_asan_end), flags & ~POBJ_FLAG_ZERO);
+	if (OID_IS_NULL(orig))
+		return orig;
+	PMEMoid user = alloc_additional_work(orig, size, flags);
+	if (flags & POBJ_FLAG_ZERO)
+		TX_MEMSET(pmemobj_direct(user), 0, size);
+	return user;
 }
 
 int
