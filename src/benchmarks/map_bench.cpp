@@ -572,6 +572,11 @@ map_common_init(struct benchmark *bench, struct benchmark_args *args)
 
 	map_bench->map = D_RO(map_bench->root)->map;
 
+	if (strcmp(map_bench->margs->type, "hashmap_tx") == 0) 
+	{
+		ops->init(map_bench->pop, map_bench->map);
+	}
+
 	pmembench_set_priv(bench, map_bench);
 	return 0;
 err_free_map:
