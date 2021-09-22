@@ -908,6 +908,7 @@ map_common_init_partial_cov(struct benchmark *bench, struct benchmark_args *args
 		strcmp(map_bench->margs->type, "hashmap_tx_unsafe") == 0) 
 	{
 		ops->init(map_bench->pop, map_bench->map);
+		ops_unsafe->init(map_bench->pop, map_bench->map_unsafe);
 	}
 
 	/* probability threshold for the rand() function */
@@ -916,7 +917,7 @@ map_common_init_partial_cov(struct benchmark *bench, struct benchmark_args *args
 	pmembench_set_priv(bench, map_bench);
 	return 0;
 err_free_map_unsafe:
-	map_ctx_free(map_bench->mapc);
+	map_ctx_free(map_bench->mapc_unsafe);
 err_free_map:
 	map_ctx_free(map_bench->mapc);
 err_destroy_lock:
@@ -1073,7 +1074,7 @@ map_keys_init_unsafe(struct benchmark *bench, struct benchmark_args *args)
 		for (size_t i = 0; i < map_bench->nkeys; i++) {
 			PMEMoid oid;
 			if (targs->alloc)
-				oid = pmemobj_tx_alloc(args->dsize,
+				oid = pmemobj_tx_alloc_unsafe(args->dsize,
 							OBJ_TYPE_NUM);
 			else
 				oid = map_bench->root_oid;
