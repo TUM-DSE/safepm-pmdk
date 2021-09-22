@@ -30,6 +30,7 @@ TOID_DECLARE_ROOT(struct root);
 
 struct root {
 	TOID(struct map) map;
+	TOID(struct map) map_unsafe;
 };
 
 #define OBJ_TYPE_NUM 1
@@ -86,6 +87,9 @@ struct map_bench {
 	TOID(struct root) root;
 	PMEMoid root_oid;
 	TOID(struct map) map;
+	TOID(struct map) map_unsafe;
+
+	int probability_thres;
 
 	int (*insert)(struct map_bench *, uint64_t);
 	int (*remove)(struct map_bench *, uint64_t);
@@ -177,6 +181,44 @@ map_remove_free_op(struct map_bench *map_bench, uint64_t key)
 }
 
 /*
+ * map_remove_free_op_unsafe -- remove and free object from map
+ */
+static int
+map_remove_free_op_unsafe(struct map_bench *map_bench, uint64_t key)
+{
+	volatile int ret = 0;
+	TX_BEGIN(map_bench->pop)
+	{
+		PMEMoid val;
+		if (rand() >= map_bench->probability_thres)
+		{
+			/* safe operation */
+			val = map_remove(map_bench->mapc, map_bench->map, key);
+			if (OID_IS_NULL(val))
+				ret = -1;
+			else
+				pmemobj_tx_free(val);
+		}
+		else
+		{
+			/* unsafe operation */
+			val = map_remove(map_bench->mapc_unsafe, map_bench->map_unsafe, key);
+			if (OID_IS_NULL(val))
+				ret = -1;
+			else
+				pmemobj_tx_free_unsafe(val);
+		}
+	}
+	TX_ONABORT
+	{
+		ret = -1;
+	}
+	TX_END
+
+	return ret;
+}
+
+/*
  * map_remove_root_op -- remove root object from map
  */
 static int
@@ -184,6 +226,26 @@ map_remove_root_op(struct map_bench *map_bench, uint64_t key)
 {
 	PMEMoid val = map_remove(map_bench->mapc, map_bench->map, key);
 
+	return !OID_EQUALS(val, map_bench->root_oid);
+}
+
+/*
+ * map_remove_root_op_unsafe -- remove root object from map
+ */
+static int
+map_remove_root_op_unsafe(struct map_bench *map_bench, uint64_t key)
+{
+	PMEMoid val;
+	if (rand() >= map_bench->probability_thres)
+	{
+		/* safe operation */
+		val = map_remove(map_bench->mapc, map_bench->map, key);
+	}
+	else
+	{
+		/* unsafe operation */
+		val = map_remove(map_bench->mapc_unsafe, map_bench->map_unsafe, key);
+	}
 	return !OID_EQUALS(val, map_bench->root_oid);
 }
 
@@ -231,6 +293,39 @@ map_insert_alloc_op(struct map_bench *map_bench, uint64_t key)
 }
 
 /*
+ * map_insert_alloc_op_unsafe -- allocate an object and insert to map
+ */
+static int
+map_insert_alloc_op_unsafe(struct map_bench *map_bench, uint64_t key)
+{
+	int ret = 0;
+
+	TX_BEGIN(map_bench->pop)
+	{
+		PMEMoid oid;
+		if (rand() >= map_bench->probability_thres)
+		{
+			/* safe operation */
+			oid = pmemobj_tx_alloc(map_bench->args->dsize, OBJ_TYPE_NUM);
+			ret = map_insert(map_bench->mapc, map_bench->map, key, oid);
+		}
+		else
+		{
+			/* unsafe operation */
+			oid = pmemobj_tx_alloc_unsafe(map_bench->args->dsize, OBJ_TYPE_NUM);
+			ret = map_insert(map_bench->mapc_unsafe, map_bench->map_unsafe, key, oid);
+		}		
+	}
+	TX_ONABORT
+	{
+		ret = -1;
+	}
+	TX_END
+
+	return ret;
+}
+
+/*
  * map_insert_root_op -- insert root object to map
  */
 static int
@@ -238,6 +333,26 @@ map_insert_root_op(struct map_bench *map_bench, uint64_t key)
 {
 	return map_insert(map_bench->mapc, map_bench->map, key,
 			  map_bench->root_oid);
+}
+
+/*
+ * map_insert_root_op_unsafe -- insert root object to map
+ */
+static int
+map_insert_root_op_unsafe(struct map_bench *map_bench, uint64_t key)
+{
+	if (rand() >= map_bench->probability_thres)
+	{
+		/* safe operation */
+		return map_insert(map_bench->mapc, map_bench->map, key,
+			  	map_bench->root_oid);
+	}
+	else
+	{
+		/* unsafe operation */
+		return map_insert(map_bench->mapc_unsafe, map_bench->map_unsafe,
+				key, map_bench->root_oid);
+	}
 }
 
 /*
@@ -271,6 +386,28 @@ map_get_obj_op(struct map_bench *map_bench, uint64_t key)
 }
 
 /*
+ * map_get_obj_op_unsafe -- get object from map at specified key
+ */
+static int
+map_get_obj_op_unsafe(struct map_bench *map_bench, uint64_t key)
+{
+	PMEMoid val;
+	if (rand() >= map_bench->probability_thres)
+	{
+		/* safe operation */
+		val = map_get(map_bench->mapc, map_bench->map, key);
+	}
+	else
+	{
+		/* unsafe operation */
+		val = map_get(map_bench->mapc_unsafe, map_bench->map_unsafe, key);
+	}
+	
+
+	return OID_IS_NULL(val);
+}
+
+/*
  * map_get_root_op -- get root object from map at specified key
  */
 static int
@@ -280,6 +417,28 @@ map_get_root_op(struct map_bench *map_bench, uint64_t key)
 
 	return !OID_EQUALS(val, map_bench->root_oid);
 }
+
+/*
+ * map_get_root_op_unsafe -- get root object from map at specified key
+ */
+static int
+map_get_root_op_unsafe(struct map_bench *map_bench, uint64_t key)
+{
+	PMEMoid val;
+	if (rand() >= map_bench->probability_thres)
+	{
+		/* safe operation */
+		val = map_get(map_bench->mapc, map_bench->map, key);
+	}
+	else
+	{
+		/* unsafe operation */
+		val = map_get(map_bench->mapc_unsafe, map_bench->map_unsafe, key);
+	}
+
+	return !OID_EQUALS(val, map_bench->root_oid);
+}
+
 
 /*
  * map_get_op -- main operation for map_get benchmark
@@ -631,9 +790,22 @@ map_common_init_partial_cov(struct benchmark *bench, struct benchmark_args *args
 	map_bench->args = args;
 	map_bench->margs = (struct map_bench_args *)args->opts;
 
+	const struct map_ops *ops_unsafe;
 	const struct map_ops *ops = parse_map_type(map_bench->margs->type);
-	if (!ops) {
-		fprintf(stderr, "invalid map type value specified -- '%s'\n",
+	if (!ops || strcmp(map_bench->margs->type, "hashmap_tx") != 0) {
+		fprintf(stderr, "invalid map type value specified -- '%s' \
+						-- only hashmap_tx is available for partial coverage\n",
+			map_bench->margs->type);
+		goto err_free_bench;
+	}
+
+	char unsafe_type[50];
+	strcpy(unsafe_type, map_bench->margs->type);
+	strcat(unsafe_type, "_unsafe");
+	ops_unsafe = parse_map_type(unsafe_type);
+	if (!ops_unsafe) {
+		fprintf(stderr, "invalid unsafe map type value specified -- '%s' \
+						-- only hashmap_tx is available for partial coverage\n",
 			map_bench->margs->type);
 		goto err_free_bench;
 	}
@@ -645,13 +817,13 @@ map_common_init_partial_cov(struct benchmark *bench, struct benchmark_args *args
 	}
 
 	if (map_bench->margs->alloc) {
-		map_bench->insert = map_insert_alloc_op;
-		map_bench->remove = map_remove_free_op;
-		map_bench->get = map_get_obj_op;
+		map_bench->insert = map_insert_alloc_op_unsafe;
+		map_bench->remove = map_remove_free_op_unsafe;
+		map_bench->get = map_get_obj_op_unsafe;
 	} else {
-		map_bench->insert = map_insert_root_op;
-		map_bench->remove = map_remove_root_op;
-		map_bench->get = map_get_root_op;
+		map_bench->insert = map_insert_root_op_unsafe;
+		map_bench->remove = map_remove_root_op_unsafe;
+		map_bench->get = map_get_root_op_unsafe;
 	}
 
 	map_bench->nkeys = args->n_threads * args->n_ops_per_thread;
@@ -704,20 +876,33 @@ map_common_init_partial_cov(struct benchmark *bench, struct benchmark_args *args
 		goto err_destroy_lock;
 	}
 
+	map_bench->mapc_unsafe = map_ctx_init(ops_unsafe, map_bench->pop);
+	if (!map_bench->mapc) {
+		perror("map_ctx_init");
+		goto err_free_map;
+	}
+
 	map_bench->root = POBJ_ROOT(map_bench->pop, struct root);
 	if (TOID_IS_NULL(map_bench->root)) {
 		fprintf(stderr, "pmemobj_root: %s\n", pmemobj_errormsg());
-		goto err_free_map;
+		goto err_free_map_unsafe;
 	}
 
 	map_bench->root_oid = map_bench->root.oid;
 
 	if (map_create(map_bench->mapc, &D_RW(map_bench->root)->map, nullptr)) {
 		perror("map_new");
-		goto err_free_map;
+		goto err_free_map_unsafe;
 	}
 
 	map_bench->map = D_RO(map_bench->root)->map;
+
+	if (map_create(map_bench->mapc_unsafe, &D_RW(map_bench->root)->map_unsafe, nullptr)) {
+		perror("map_new_unsafe");
+		goto err_free_map_unsafe;
+	}
+
+	map_bench->map_unsafe = D_RO(map_bench->root)->map_unsafe;
 
 	if (strcmp(map_bench->margs->type, "hashmap_tx") == 0 ||
 		strcmp(map_bench->margs->type, "hashmap_tx_unsafe") == 0) 
@@ -725,8 +910,13 @@ map_common_init_partial_cov(struct benchmark *bench, struct benchmark_args *args
 		ops->init(map_bench->pop, map_bench->map);
 	}
 
+	/* probability threshold for the rand() function */
+	map_bench->probability_thres = (int)(RAND_MAX * ((double)map_bench->margs->probability / 100));
+
 	pmembench_set_priv(bench, map_bench);
 	return 0;
+err_free_map_unsafe:
+	map_ctx_free(map_bench->mapc);
 err_free_map:
 	map_ctx_free(map_bench->mapc);
 err_destroy_lock:
@@ -818,6 +1008,98 @@ map_keys_init(struct benchmark *bench, struct benchmark_args *args)
 }
 
 /*
+ * map_keys_init_unsafe -- initialize array with keys
+ */
+static int
+map_keys_init_unsafe(struct benchmark *bench, struct benchmark_args *args)
+{
+	auto *map_bench = (struct map_bench *)pmembench_get_priv(bench);
+	assert(map_bench);
+	auto *targs = (struct map_bench_args *)args->opts;
+	assert(targs);
+
+	assert(map_bench->nkeys != 0);
+	map_bench->keys =
+		(uint64_t *)malloc(map_bench->nkeys * sizeof(*map_bench->keys));
+
+	if (!map_bench->keys) {
+		perror("malloc");
+		return -1;
+	}
+
+	int ret = 0;
+
+	mutex_lock_nofail(&map_bench->lock);
+
+	/*
+	 *	Insert keys into safe map
+	 */
+	TX_BEGIN(map_bench->pop)
+	{
+		for (size_t i = 0; i < map_bench->nkeys; i++) {
+			uint64_t key;
+			PMEMoid oid;
+			do {
+				key = get_key(&targs->seed, targs->max_key);
+				oid = map_get(map_bench->mapc, map_bench->map,
+					      key);
+			} while (!OID_IS_NULL(oid));
+
+			if (targs->alloc)
+				oid = pmemobj_tx_alloc(args->dsize,
+						       OBJ_TYPE_NUM);
+			else
+				oid = map_bench->root_oid;
+
+			ret = map_insert(map_bench->mapc, map_bench->map, key,
+					 oid);
+			if (ret)
+				break;
+
+			map_bench->keys[i] = key;
+		}
+	}
+	TX_ONABORT
+	{
+		ret = -1;
+	}
+	TX_END
+	
+	/*
+	 *	Insert keys into unsafe map
+	 */
+	TX_BEGIN(map_bench->pop)
+	{
+		for (size_t i = 0; i < map_bench->nkeys; i++) {
+			PMEMoid oid;
+			if (targs->alloc)
+				oid = pmemobj_tx_alloc(args->dsize,
+							OBJ_TYPE_NUM);
+			else
+				oid = map_bench->root_oid;
+			
+			ret = map_insert(map_bench->mapc_unsafe, map_bench->map_unsafe, 
+					map_bench->keys[i],	oid);
+			if (ret)
+				break;
+		}
+	}
+	TX_ONABORT
+	{
+		ret = -1;
+	}
+	TX_END
+	
+	mutex_unlock_nofail(&map_bench->lock);
+
+	if (!ret)
+		return 0;
+
+	free(map_bench->keys);
+	return ret;
+}
+
+/*
  * map_keys_exit -- cleanup of keys array
  */
 static int
@@ -856,7 +1138,7 @@ map_bench_remove_init_partial_cov(struct benchmark *bench, struct benchmark_args
 	int ret = map_common_init_partial_cov(bench, args);
 	if (ret)
 		return ret;
-	ret = map_keys_init(bench, args);
+	ret = map_keys_init_unsafe(bench, args);
 	if (ret)
 		goto err_exit_common;
 
@@ -904,7 +1186,7 @@ map_bench_get_init_partial_cov(struct benchmark *bench, struct benchmark_args *a
 	int ret = map_common_init_partial_cov(bench, args);
 	if (ret)
 		return ret;
-	ret = map_keys_init(bench, args);
+	ret = map_keys_init_unsafe(bench, args);
 	if (ret)
 		goto err_exit_common;
 
