@@ -72,6 +72,49 @@ static char* add_layout_prefix(const char* given_layout) {
 	return layout;
 }
 
+static int maybe_init_shadows(PMEMobjpool* pool) {
+	PMEMoid roott = pmemobj_root_no_asan(pool, sizeof(struct pmemobj_asan_root)); // Note that the root object is implicitly filled with zeros when it is created
+	if(OID_IS_NULL(roott))
+		return -1;
+
+	struct pmemobj_asan_root* rootp = pmemobj_direct(roott);
+
+	if (rootp->shadow_mem.off != 0) // Already initialized
+		return 0;
+
+	size_t shadow_size = pool->set->poolsize/8; // The shadow memory encompasses information about the whole pool: including the pmdk header and the shadow memory itself
+
+	volatile int result=0; // volatile because set within TX_ONABORT
+
+	TX_BEGIN(pool) {
+		pmemobj_tx_add_range_direct_no_asan(rootp, sizeof(PMEMoid));
+		// Allocate and zero-initialize the persistent shadow memory
+		rootp->shadow_mem = pmemobj_tx_alloc_no_asan(shadow_size+4096, TOID_TYPE_NUM(struct pmemobj_asan_shadowmem)); // The offset of the shadow memory needs to be 4k aligned (because we want to be able to map it independently of the rest of the pool), so allocate some additional space
+		if (rootp->shadow_mem.off % (4096)) // Make sure the shadow mem offset is 4kb aligned. We don't need to store the original address returned by POBJ_ZALLOC because we won't free the shadow memory
+			rootp->shadow_mem.off += 4096 - rootp->shadow_mem.off%(4096);
+		
+		uint8_t* vmem_shadow_mem_start = pmemobj_direct(rootp->shadow_mem);
+
+		// Mark everything until the heap "metadata"
+		pmemobj_memset_persist(pool, vmem_shadow_mem_start, pmdk_asan_METADATA, pool->heap_offset/8); // No need to add the shadow memory to the tx, as we have just allocated it.
+
+		// Mark the entire heap "freed"
+		pmemobj_memset_persist(pool, vmem_shadow_mem_start + pool->heap_offset/8, pmdk_asan_FREED, pool->heap_size/8);
+		
+		// Mark the red zone within the persistent shadow mem
+		// The red zone corresponding to the volatile persistent memory range is marked non-accessible on a page permission level, because filling the red zone with -1 would allocate physical memory.
+		// We need not resort to such a trick, as we allocate all persistent shadow memory during pool creation.
+		pmemobj_memset_persist(pool, vmem_shadow_mem_start + rootp->shadow_mem.off/8, pmdk_asan_INTERNAL, shadow_size/8); // Note that because of the overmapping, the change will be mirrored to the overmapped shadow memory.
+	}
+	TX_ONABORT {
+		result = -1;
+	}
+	TX_END
+
+	return result;
+}
+
+
 PMEMobjpool *pmemobj_open(const char *path, const char *given_layout) {
 	PMEMobjpool* pool;
 	if (1) {
@@ -82,10 +125,17 @@ PMEMobjpool *pmemobj_open(const char *path, const char *given_layout) {
 
 	if (pool == NULL)
 		return NULL;
+
+	if (maybe_init_shadows(pool)) {
+		pmemobj_close_no_asan(pool);
+		return NULL;
+	}
+
 	overmap_pool(path, pool);
 	
 	return pool;
 }
+
 PMEMobjpool *pmemobj_create(const char *path, const char *real_layout, size_t poolsize, mode_t mode) {
 	poolsize -= poolsize%(4096*8); // Poolsize needs to be 8*4kb-padded because the shadow memory needs to be 4kb-padded (for marking the red-zone)
 	PMEMobjpool* pool;
@@ -96,36 +146,17 @@ PMEMobjpool *pmemobj_create(const char *path, const char *real_layout, size_t po
 	}
 	if (pool == NULL)
 		return NULL;
-	PMEMoid roott = pmemobj_root_no_asan(pool, sizeof(struct pmemobj_asan_root));
-	assert(! OID_IS_NULL(roott));
 
-	struct pmemobj_asan_root* rootp = pmemobj_direct(roott);
-	rootp->real_root_size = 0;
-	size_t shadow_size = poolsize/8; // The shadow memory encompasses information about the whole pool: including the pmdk header and the shadow memory itself
-	// Allocate and zero-initialize the persistent shadow memory
-	
-	assert(0 == pmemobj_alloc_no_asan(pool, &rootp->shadow_mem, shadow_size+4096, TOID_TYPE_NUM(struct pmemobj_asan_shadowmem), NULL, NULL)); // The offset of the shadow memory needs to be 4k aligned (because we want to be able to map it independently of the rest of the pool), so allocate some additional space
-	if (rootp->shadow_mem.off % (4096)) // Make sure the shadow mem offset is 4kb aligned. We don't need to store the original address returned by POBJ_ZALLOC because we won't free the shadow memory
-		rootp->shadow_mem.off += 4096 - rootp->shadow_mem.off%(4096);
+	assert(pool->set->poolsize == poolsize);
 
-	pmemobj_persist(pool, rootp, sizeof(struct pmemobj_asan_root));
+	if (maybe_init_shadows(pool)) {
+		pmemobj_close_no_asan(pool);
+		return NULL;
+	}
 
 	// Overmap the persistent shadow memory on top of the (volatile) shadow memory created by ASan
 	overmap_pool(path, pool);
-	
-	uint8_t* vmem_shadow_mem_start = pmemobj_direct(rootp->shadow_mem);
 
-	// Mark eerything until the heap "metadata"
-	pmemobj_memset_persist(pool, vmem_shadow_mem_start, pmdk_asan_METADATA, pool->heap_offset/8);
-
-	// Mark the entire heap "freed"
-	pmemobj_memset_persist(pool, vmem_shadow_mem_start + pool->heap_offset/8, pmdk_asan_FREED, pool->heap_size/8);
-	
-	// Mark the red zone within the persistent shadow mem
-	// The red zone corresponding to the volatile persistent memory range is marked non-accessible on a page permission level, because filling the red zone with -1 would allocate physical memory.
-	// We need not resort to such a trick, as we allocate all persistent shadow memory during pool creation.
-	pmemobj_memset_persist(pool, vmem_shadow_mem_start + rootp->shadow_mem.off/8, pmdk_asan_INTERNAL, shadow_size/8); // Note that because of the overmapping, the change will be mirrored to the overmapped shadow memory.
-	
 	return pool;
 }
 
