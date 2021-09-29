@@ -98,7 +98,8 @@ OBJS += $(TOP)/src/debug/common/ravl.o\
 	$(TOP)/src/debug/libpmemobj/stats.o\
 	$(TOP)/src/debug/libpmemobj/asan.o\
 	$(TOP)/src/debug/libpmemobj/asan_overmap.o\
-	$(TOP)/src/debug/libpmemobj/asan_wrappers.o
+	$(TOP)/src/debug/libpmemobj/asan_wrappers.o\
+	$(TOP)/src/debug/libpmemobj/asan_verifier.o
 
 INCS += -I$(TOP)/src/libpmemobj
 endif
@@ -129,7 +130,8 @@ OBJS +=	$(TOP)/src/nondebug/common/ravl.o\
 	$(TOP)/src/nondebug/libpmemobj/stats.o\
 	$(TOP)/src/nondebug/libpmemobj/asan.o\
 	$(TOP)/src/nondebug/libpmemobj/asan_overmap.o\
-	$(TOP)/src/nondebug/libpmemobj/asan_wrappers.o
+	$(TOP)/src/nondebug/libpmemobj/asan_wrappers.o\
+	$(TOP)/src/nondebug/libpmemobj/asan_verifier.o
 
 INCS += -I$(TOP)/src/libpmemobj
 endif
