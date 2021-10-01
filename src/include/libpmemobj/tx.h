@@ -212,7 +212,7 @@ TX_MEMSET(void *dest, int c, size_t num)
 	return memset(dest, c, num);
 }
 
-__attribute__((no_sanitize_address))
+__attribute__((no_sanitize("address")))
 static inline void *
 TX_MEMCPY_UNSAFE(void *dest, const void *src, size_t num)
 {
@@ -220,7 +220,7 @@ TX_MEMCPY_UNSAFE(void *dest, const void *src, size_t num)
 	return memcpy(dest, src, num);
 }
 
-__attribute__((no_sanitize_address))
+__attribute__((no_sanitize("address")))
 static inline void *
 TX_MEMSET_UNSAFE(void *dest, int c, size_t num)
 {

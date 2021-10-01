@@ -365,6 +365,7 @@ pmembench_merge_clos(struct benchmark *bench)
 /*
  * pmembench_run_worker -- run worker with benchmark operation
  */
+__attribute__((no_sanitize("address")))
 static int
 pmembench_run_worker(struct benchmark *bench, struct worker_info *winfo)
 {

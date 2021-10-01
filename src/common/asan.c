@@ -21,7 +21,8 @@ uint8_t* pmdk_asan_get_shadow_mem_location(void* _p) {
 
 // Even with no_sanitize, calls to memset get intercepted by ASan,
 //  which is uncomfortable with us directly modifying the shadow memory
-__attribute__((no_sanitize("address")))
+//__attribute__((no_sanitize("address")))
+__attribute__((no_sanitize_address))
 void pmdk_asan_memset(void* start_, uint8_t byt, size_t len) {
 	uint8_t* start = start_;
 	while (len) {
@@ -31,7 +32,8 @@ void pmdk_asan_memset(void* start_, uint8_t byt, size_t len) {
 	}
 }
 
-__attribute__((no_sanitize("address")))
+//__attribute__((no_sanitize("address")))
+__attribute__((no_sanitize_address))
 void pmdk_asan_memcpy(void* dest_, const void* src_, size_t len) {
         uint8_t* dest = (uint8_t*)dest_;
         const uint8_t* src = (const uint8_t*)src_;
@@ -44,7 +46,8 @@ void pmdk_asan_memcpy(void* dest_, const void* src_, size_t len) {
 }
 
 // len in bytes
-__attribute__((no_sanitize("address")))
+//__attribute__((no_sanitize("address")))
+__attribute__((no_sanitize_address))
 void pmdk_asan_mark_mem(void* shadow_in_pool_, uint64_t pool_offset, size_t len, uint8_t tag) {
 	uint8_t* shadow_in_pool = (uint8_t*)shadow_in_pool_;
 	assert((int8_t)tag <= 0);

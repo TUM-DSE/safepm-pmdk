@@ -15,6 +15,7 @@
 /*
  * benchmark_time_get -- get timestamp from clock source
  */
+__attribute__((no_sanitize("address")))
 void
 benchmark_time_get(benchmark_time_t *time)
 {
